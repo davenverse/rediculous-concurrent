@@ -3,15 +3,16 @@ layout: home
 
 ---
 
-# rediculous-rate-limiter - Redis Rate Limiter [![Build Status](https://travis-ci.com/ChristopherDavenport/rediculous-rate-limiter.svg?branch=master)](https://travis-ci.com/ChristopherDavenport/rediculous-rate-limiter) [![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.chrisdavenport/rediculous-rate-limiter_2.12/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.chrisdavenport/rediculous-rate-limiter_2.12)
+# rediculous-concurrent- Redis Concurrency Structures [![Build Status](https://travis-ci.com/ChristopherDavenport/rediculous-concurrent.svg?branch=master)](https://travis-ci.com/ChristopherDavenport/rediculous-concurrent) [![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.chrisdavenport/rediculous-concurrent_2.13/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.chrisdavenport/rediculous-concurrent_2.13) ![Code of Consuct](https://img.shields.io/badge/Code%20of%20Conduct-Scala-blue.svg)
+
 
 ## Quick Start
 
-To use rediculous-rate-limiter in an existing SBT project with Scala 2.11 or a later version, add the following dependencies to your
+To use rediculous-concurrent in an existing SBT project with Scala 2.11 or a later version, add the following dependencies to your
 `build.sbt` depending on your needs:
 
 ```scala
 libraryDependencies ++= Seq(
-  "io.chrisdavenport" %% "rediculous-rate-limiter" % "<version>"
+  "io.chrisdavenport" %% "rediculous-concurrent" % "<version>"
 )
 ```
