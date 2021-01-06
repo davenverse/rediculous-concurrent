@@ -111,6 +111,7 @@ lazy val commonSettings = Seq(
 
     "io.chrisdavenport"           %% "rediculous"                 % "0.0.8",
     "io.chrisdavenport"           %% "mapref"                     % "0.1.1",
+    "io.chrisdavenport"           %% "circuit"                    % "0.4.3",
 
     "org.tpolecat"                %% "doobie-core"                % doobieV,
     "org.tpolecat"                %% "doobie-h2"                  % doobieV,

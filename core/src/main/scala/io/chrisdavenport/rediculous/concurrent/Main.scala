@@ -7,6 +7,7 @@ import fs2.io.tcp._
 // import java.net.InetSocketAddress
 // import fs2._
 import scala.concurrent.duration._
+import cats.syntax.SetOps
 
 object Main extends IOApp {
 
@@ -30,7 +31,7 @@ object Main extends IOApp {
       //   name => 
       //   RedisCommands.get[Redis[IO, *]](lockName).run(connection).flatTap(_.putStrLn)
       // } >> RedisCommands.get[Redis[IO, *]](lockName).run(connection).flatTap(_.putStrLn)
-      RedisRef.lockedLocation[IO](connection, "foo", "bar", 10.seconds, 10.seconds).flatMap{
+      RedisRef.lockedLocation[IO](connection, "foo", "bar", 10.seconds, 10.seconds, RedisCommands.SetOpts(Some(60), None, None, false)).flatMap{
         ref => 
         // ref.get.flatTap(_.putStrLn) >>
         ref.access.flatMap{

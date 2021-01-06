@@ -8,13 +8,13 @@ import io.chrisdavenport.rediculous.RedisTransaction.TxResult.{Aborted, Success,
 import cats.Applicative
 import scala.concurrent.duration._
 
-trait RateLimiter[F[_]]{
-  def get(id: String): F[RateLimiter.RateLimitInfo]
-  def getAndDecrement(id: String): F[RateLimiter.RateLimitInfo]
-  def rateLimit(id: String): F[RateLimiter.RateLimitInfo]
+trait RedisRateLimiter[F[_]]{
+  def get(id: String): F[RedisRateLimiter.RateLimitInfo]
+  def getAndDecrement(id: String): F[RedisRateLimiter.RateLimitInfo]
+  def rateLimit(id: String): F[RedisRateLimiter.RateLimitInfo]
 }
 
-object RateLimiter {
+object RedisRateLimiter {
 
   case class RateLimitInfo(
     remaining: Long, // Remaining attempts
@@ -29,7 +29,7 @@ object RateLimiter {
     max: Long = 2500,
     duration: FiniteDuration = 3600000.milliseconds, // milliseconds
     namespace : String = "rediculous-rate-limiter"
-  ): RateLimiter[F] = new RateLimiter[F] {
+  ): RedisRateLimiter[F] = new RedisRateLimiter[F] {
 
     def getInternal(id: String, remove: Boolean): F[RateLimitInfo] = Concurrent[F].suspend{
       val key = s"${namespace}:${id}"

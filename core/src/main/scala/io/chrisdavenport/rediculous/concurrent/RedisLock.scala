@@ -13,7 +13,7 @@ import io.chrisdavenport.rediculous.RedisCommands._
 import io.chrisdavenport.rediculous.RedisTransaction.TxResult.{Success, Aborted, Error}
 
 
-object Lock {
+object RedisLock {
 
   def tryAcquireLockWithTimeout[F[_]: Concurrent: Timer](
     connection: RedisConnection[F],
