@@ -13,9 +13,10 @@ import io.chrisdavenport.rediculous.RedisProtocol.Status
 
 object RedisRef {
 
-  // This uses the simple WATCH approach which means there is higher contention on the resource
-  // which under heavy concurrency situations a lot of retries. However if there is very little
-  // concurrency will behave smoother
+  /** This uses the simple WATCH approach which means there is higher contention on the resource
+    * which under heavy concurrency situations a lot of retries. However if there is very little
+    * concurrency will behave smoother
+    */
   def atLocation[F[_]: Concurrent](redisConnection: RedisConnection[F], key: String, setIfAbsent: String): F[Ref[F, String]] = {
     RedisCommands.setnx[Redis[F, *]](key, setIfAbsent)
       .run(redisConnection)
