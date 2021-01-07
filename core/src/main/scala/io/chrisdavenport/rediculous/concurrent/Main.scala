@@ -26,6 +26,14 @@ object Main extends IOApp {
     } yield connection
 
     r.use{ connection => 
+      RedisSemaphore.build(connection, "sem", 2L, 10.seconds, 10.milli).flatMap{
+        sem => 
+
+        sem.tryAcquire.flatTap(_.putStrLn) >>
+        sem.tryAcquire.flatTap(_.putStrLn) //>>
+        // sem.tryAcquire.flatTap(_.putStrLn) //>>
+        // sem.release.replicateA(2)
+      }
       // val lockName = "lock:foo"
 
       // RedisSemaphore.semaphoreWithLimitLock(connection, "semaphoretest", 2, 10.seconds).use

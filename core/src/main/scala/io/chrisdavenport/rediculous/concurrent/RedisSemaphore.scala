@@ -3,6 +3,7 @@ package io.chrisdavenport.rediculous.concurrent
 import cats._
 import cats.syntax.all._
 import cats.effect._
+import cats.effect.concurrent._
 import io.chrisdavenport.rediculous._
 import io.chrisdavenport.rediculous.{RedisCommands, RedisConnection}
 import io.chrisdavenport.rediculous.RedisTransaction.TxResult
@@ -12,50 +13,94 @@ import java.util.UUID
 import cats.data.NonEmptyList
 import io.chrisdavenport.rediculous.RedisTransaction.TxResult.Success
 import io.chrisdavenport.rediculous.RedisTransaction.TxResult.Aborted
+import shapeless.ops.nat.Min
+
+trait MiniSemaphore[F[_]]{
+  def acquire: F[Unit]
+  def tryAcquire: F[Boolean]
+  def release: F[Unit]
+  def withPermit[A](f: F[A]): F[A]
+}
+
+object MiniSemaphore {
+
+  def fromSemaphore[F[_]](semaphore: Semaphore[F]): MiniSemaphore[F] = new MiniSemaphore[F]{
+    def acquire: F[Unit] = semaphore.acquire
+    
+    def tryAcquire: F[Boolean] = semaphore.tryAcquire
+    
+    def release: F[Unit] = semaphore.release
+    
+    def withPermit[A](f: F[A]): F[A] = semaphore.withPermit(f)
+  }
+
+  def fromRedisSemaphore[F[_]: Sync](r: RedisSemaphore.RedisBackedSemaphore[F]): MiniSemaphore[F] = new MiniSemaphore[F]{
+    def acquire: F[Unit] = r.acquire
+    
+    def tryAcquire: F[Boolean] = r.tryAcquire
+    
+    def release: F[Unit] = r.release
+    
+    def withPermit[A](f: F[A]): F[A] = r.withPermit.use(_ => f)
+    
+  }
+
+}
 
 object RedisSemaphore {
+
+  def build[F[_]: Concurrent: Timer](
+    redisConnection: RedisConnection[F],
+    semname: String,
+    limit: Long,
+    timeout: FiniteDuration,
+    poll: FiniteDuration,
+  ): F[RedisBackedSemaphore[F]] = Ref.of(List.empty[UUID]).map(
+    new RedisBackedSemaphore[F](redisConnection, semname, limit, timeout, poll, _)
+  )
 
   class RedisBackedSemaphore[F[_]: Concurrent: Timer](
     redisConnection: RedisConnection[F],
     semname: String,
     limit: Long,
     timeout: FiniteDuration,
+    poll: FiniteDuration,
     ownedIdentifiers: Ref[F, List[UUID]]
   ){
-    def tryAcquire: 
+
+    def acquire: F[Unit] = 
+      Concurrent.timeout(
+        tryAcquire.flatMap{
+        case true => Applicative[F].unit
+        case false => Timer[F].sleep(poll) >> acquire
+      }, timeout)
+
+    def tryAcquire: F[Boolean] = 
+      RedisLock.tryAcquireLock(redisConnection, semname,timeout, timeout)
+        .flatMap{
+          case Some(lockIdentifier) => 
+            tryAcquireSemaphore(redisConnection, semname, limit, timeout).flatTap{_ => 
+              RedisLock.shutdownLock(redisConnection, semname, lockIdentifier)
+            }.flatMap{
+              case None => false.pure[F]
+              case Some(semaphoreIdentifier) => 
+                ownedIdentifiers.update(l => semaphoreIdentifier :: l).as(true)
+            }
+            
+          case None => false.pure[F]
+        }
+
+    def release: F[Unit] = ownedIdentifiers.modify{
+      case Nil => (Nil, None)
+      case x :: xs => (xs, Some(x))
+    }.flatMap{
+      case Some(id) => releaseSemaphore(redisConnection, semname, id)
+      case None =>  
+        Applicative[F].unit
+    }
+
+    def withPermit: Resource[F, Unit] = Resource.make(acquire)(_ => release)
   }
-
-  // def tryAcquire[F[_]: Concurrent: Timer](
-  //   redisConnection: RedisConnection[F],
-  //   semname: String,
-  //   limit: Long,
-  //   timeout: FiniteDuration
-  // ): F[Boolean] = 
-    // Resource.liftF(RedisLock.tryAcquireLock(redisConnection, semname,timeout, timeout)).flatMap{
-    //   case Some(lockIdentifier) => 
-    //     Resource.liftF(tryAcquireSemaphore(redisConnection, semname, limit, timeout)).flatMap{ 
-    //       case Some(semIdentifier) => 
-    //         Resource.liftF(RedisLock.shutdownLock(redisConnection, semname, lockIdentifier)) >> 
-    //         Resource.make(Applicative[F].unit)(_ => releaseSemaphore(redisConnection, semname, semIdentifier))
-    //           .as(true)
-    //       case None => 
-    //         Resource.liftF(RedisLock.shutdownLock(redisConnection, semname, lockIdentifier)).as(false)
-    //     }
-    //   case None => false.pure[Resource[F, *]]
-    // }
-
-
-  def semaphoreWithLimitNoLock[F[_]: Concurrent](
-    redisConnection: RedisConnection[F],
-    semname: String,
-    limit: Long,
-    timeout: FiniteDuration
-  ): Resource[F, Boolean] = 
-    Resource.make(tryAcquireSemaphore(redisConnection, semname, limit, timeout)){
-      case None => Sync[F].unit
-      case Some(identifier) => releaseSemaphore(redisConnection, semname, identifier)
-    }.map(_.isDefined)
-
 
   private def tryAcquireSemaphore[F[_]: Concurrent](
     redisConnection: RedisConnection[F],
@@ -80,14 +125,17 @@ object RedisSemaphore {
         RedisCommands.incr[RedisTransaction](ctr),
         // RedisCommands.zadd[RedisTransaction](semname, List((now.toMillis.toDouble, random.toString))),
         // RedisCommands.zrank[RedisTransaction](semname, random.toString())
-      ).mapN{case (_, _, counter) => counter}.transact.run(redisConnection).flatMap{
-        case TxResult.Success(counter) => 
+      ).tupled.transact.run(redisConnection).flatMap{
+        case TxResult.Success(s@(_, _, counter)) => 
+          println(s)
               val transaction = RedisCommands.zadd[RedisTransaction](semname, List((now.toMillis.toDouble, identifier))) *>
               RedisCommands.zadd[RedisTransaction](czset, List((counter.toDouble, identifier))) *> 
               RedisCommands.zrank[RedisTransaction](czset, identifier)
 
               transaction.transact.run(redisConnection).flatMap{
                 case TxResult.Success(value) => 
+                  println(value)
+                  println(limit)
                   if (value < limit) Option(random).pure[F]
                   else cleanup.transact.run(redisConnection).void.as(Option.empty[UUID])
                 case TxResult.Aborted => cleanup.transact.run(redisConnection).void.as(Option.empty[UUID])
