@@ -3,6 +3,7 @@ package io.chrisdavenport.rediculous.concurrent
 import io.chrisdavenport.rediculous._
 import cats.implicits._
 import cats.effect._
+import fs2._
 import fs2.io.tcp._
 // import java.net.InetSocketAddress
 // import fs2._
@@ -22,18 +23,56 @@ object Main extends IOApp {
       // maxQueued: How many elements before new submissions semantically block. Tradeoff of memory to queue jobs. 
       // Default 1000 is good for small servers. But can easily take 100,000.
       // workers: How many threads will process pipelined messages.
-      connection <- RedisConnection.queued[IO](sg, "localhost", 6379, maxQueued = 10000, workers = 1)
+      connection <- RedisConnection.queued[IO](sg, "localhost", 6379, maxQueued = 10000, workers = 4)
     } yield connection
 
     r.use{ connection => 
-      RedisSemaphore.build(connection, "sem", 2L, 10.seconds, 10.milli).flatMap{
-        sem => 
+      val ref = RedisRef.liftedDefaultStorage(
+        RedisRef.lockedOptionRef(connection, "ref-test", 1.seconds, 10.seconds, RedisCommands.SetOpts(None, None, None, false)),
+        "0"
+      ).imap(_.toInt)(_.toString)
+      val action = ref.update(_ + 1)
+      val now = IO.delay(System.currentTimeMillis().millis)
+      def time[A](io: IO[A]): IO[A] = 
+        (now, io, now).tupled.flatMap{
+          case (begin, out, end) => 
+            (end - begin).putStrLn.map(_ => out)
+        }
+      // action >>
+      time(
+        // Stream
+        (
+          Stream.eval(action).repeat.take(10000)
+        )//
+          .compile
+          .drain
+      ) >> 
+      ref.get.flatTap(_.putStrLn)
+        
+      // action.replicateA(100000).void
+      // val queue = RedisQueue.unbounded(connection, "queue-test", 50.millis)
+      // queue.dequeueChunk(1000)
+      //   .chunks
+      //   .observeAsync(100000)(_.evalMap(_.putStrLn))
+      //   .concurrently(
+          // Stream.awakeDelay[IO](100.millis).zipRight(
+      //       (
+      //       Stream.iterate(0)(_ + 1).covary[IO]
+      //     ).map(value => 
+      //       Stream.eval(queue.enqueue1(value.toString))
+      //     ).parJoin(10)//.timeout(10.seconds)
+      //   )
+      //   .compile
+      //   .drain
+      //   .timeout(15.seconds)
+      // // RedisSemaphore.build(connection, "sem", 2L, 10.seconds, 10.milli).flatMap{
+      //   sem => 
 
-        sem.tryAcquire >>//.flatTap(_.putStrLn) >>
-        sem.tryAcquire >>//.flatTap(_.putStrLn) >> //>>
-        sem.tryAcquire.map(b => s"Final Try Acquire Attempt $b").flatTap(_.putStrLn) //>>
+      //   sem.tryAcquire >>//.flatTap(_.putStrLn) >>
+      //   sem.tryAcquire >>//.flatTap(_.putStrLn) >> //>>
+      //   sem.tryAcquire.map(b => s"Final Try Acquire Attempt $b").flatTap(_.putStrLn) //>>
         // sem.release.replicateA(2)
-      }
+      // }
       // val lockName = "lock:foo"
 
       // RedisSemaphore.semaphoreWithLimitLock(connection, "semaphoretest", 2, 10.seconds).use

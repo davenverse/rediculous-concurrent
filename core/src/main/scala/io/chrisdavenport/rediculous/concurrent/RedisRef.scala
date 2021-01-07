@@ -160,7 +160,7 @@ object RedisRef {
       }
     
     def update(f: String => String): F[Unit] = 
-      modify(s => (s, ()))
+      modify(s => (f(s), ()))
     
     def modify[B](f: String => (String, B)): F[B] = 
       ref.modify{opt => 
