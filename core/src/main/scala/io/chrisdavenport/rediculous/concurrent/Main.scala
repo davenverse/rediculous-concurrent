@@ -26,23 +26,34 @@ object Main extends IOApp {
     } yield connection
 
     r.use{ connection => 
-      val lockName = "lock:foo"
+      RedisSemaphore.build(connection, "sem", 2L, 10.seconds, 10.milli).flatMap{
+        sem => 
+
+        sem.tryAcquire >>//.flatTap(_.putStrLn) >>
+        sem.tryAcquire >>//.flatTap(_.putStrLn) >> //>>
+        sem.tryAcquire.map(b => s"Final Try Acquire Attempt $b").flatTap(_.putStrLn) //>>
+        // sem.release.replicateA(2)
+      }
+      // val lockName = "lock:foo"
+
+      // RedisSemaphore.semaphoreWithLimitLock(connection, "semaphoretest", 2, 10.seconds).use
+
       // Lock.acquireLockWithTimeout(connection, "foo", 10.seconds, 10.seconds).use{
       //   name => 
       //   RedisCommands.get[Redis[IO, *]](lockName).run(connection).flatTap(_.putStrLn)
       // } >> RedisCommands.get[Redis[IO, *]](lockName).run(connection).flatTap(_.putStrLn)
-      RedisRef.lockedLocation[IO](connection, "foo", "bar", 10.seconds, 10.seconds, RedisCommands.SetOpts(Some(60), None, None, false)).flatMap{
-        ref => 
-        // ref.get.flatTap(_.putStrLn) >>
-        ref.access.flatMap{
-          case (now, f) => 
-            val set = "washington heights 3"
-            now.putStrLn >>
-            ref.set("bap") >>
-            f(set).flatTap(_.putStrLn)
-        } >>
-        ref.get.flatTap(_.putStrLn)
-      }
+      // RedisRef.lockedLocation[IO](connection, "foo", "bar", 10.seconds, 10.seconds, RedisCommands.SetOpts(Some(60), None, None, false)).flatMap{
+      //   ref => 
+      //   // ref.get.flatTap(_.putStrLn) >>
+      //   ref.access.flatMap{
+      //     case (now, f) => 
+      //       val set = "washington heights 3"
+      //       now.putStrLn >>
+      //       ref.set("bap") >>
+      //       f(set).flatTap(_.putStrLn)
+      //   } >>
+      //   ref.get.flatTap(_.putStrLn)
+      // }
       // val limiter = RateLimiter.create(connection, 10, duration = 10.seconds)
 
 

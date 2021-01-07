@@ -94,7 +94,7 @@ object RedisCircuit {
         "Closed" -> Json.obj("failures" -> failures.asJson)
       }
       case HalfOpen => Json.obj(
-        "HalfOpen" -> Json.Null
+        "HalfOpen" -> Json.obj()
       )
       case Open(startedAt, resetTimeout) => Json.obj(
         "Open" -> Json.obj(
