@@ -121,26 +121,34 @@ object RedisSemaphore {
       
       val getSemaphore = (
         RedisCommands.zremrangebyscore[RedisTransaction](semname, Double.NegativeInfinity, (now - timeout).toMillis.toDouble),
-        RedisCtx[RedisTransaction].keyed[Long](semname, NonEmptyList.of("ZINTERSTORE", czset, "2", czset, semname)),
+        RedisCtx[RedisTransaction].keyed[Long](semname, NonEmptyList.of("ZINTERSTORE", czset, "2", czset, semname, "WEIGHTS", "1", "0")),
         RedisCommands.incr[RedisTransaction](ctr),
-        // RedisCommands.zadd[RedisTransaction](semname, List((now.toMillis.toDouble, random.toString))),
-        // RedisCommands.zrank[RedisTransaction](semname, random.toString())
       ).tupled.transact.run(redisConnection).flatMap{
         case TxResult.Success(s@(_, _, counter)) => 
-          println(s)
-              val transaction = RedisCommands.zadd[RedisTransaction](semname, List((now.toMillis.toDouble, identifier))) *>
-              RedisCommands.zadd[RedisTransaction](czset, List((counter.toDouble, identifier))) *> 
+          val transaction = 
+            (
+              RedisCommands.zadd[RedisTransaction](semname, List((now.toMillis.toDouble, identifier))),
+              RedisCommands.zadd[RedisTransaction](czset, List((counter.toDouble, identifier))),
               RedisCommands.zrank[RedisTransaction](czset, identifier)
+            ).tupled
 
-              transaction.transact.run(redisConnection).flatMap{
-                case TxResult.Success(value) => 
-                  println(value)
-                  println(limit)
-                  if (value < limit) Option(random).pure[F]
-                  else cleanup.transact.run(redisConnection).void.as(Option.empty[UUID])
-                case TxResult.Aborted => cleanup.transact.run(redisConnection).void.as(Option.empty[UUID])
-                case TxResult.Error(value) => cleanup.transact.run(redisConnection).void.as(Option.empty[UUID])
-              }
+          transaction.transact.run(redisConnection).flatMap{
+            case TxResult.Success(value@(_, _, rank)) => 
+              // println(
+              //   s"""Removed ${s._1} elements from $semname
+              //   |Stored ${s._2} elements into $czset
+              //   |Counter now at ${s._3} at $ctr
+              //   |
+              //   |Added ${value._1} elements to $semname (${now.toMillis.toDouble}, ${identifier})
+              //   |Added ${value._2} elements to $czset (${counter.toDouble}, ${identifier})
+              //   |Current Rank of $czset is $rank
+              //   |""".stripMargin
+              // )
+              if (rank < limit) Option(random).pure[F]
+              else cleanup.transact.run(redisConnection).void.as(Option.empty[UUID])
+            case TxResult.Aborted => cleanup.transact.run(redisConnection).void.as(Option.empty[UUID])
+            case TxResult.Error(value) => cleanup.transact.run(redisConnection).void.as(Option.empty[UUID])
+          }
         case TxResult.Aborted => Option.empty[UUID].pure[F]
         case TxResult.Error(e) => new Throwable(s"getSemaphore encountered an error $e").raiseError[F, Option[UUID]]
       }
