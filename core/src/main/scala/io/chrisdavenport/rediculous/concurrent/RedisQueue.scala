@@ -42,9 +42,22 @@ object RedisQueue {
       RedisCommands.lpop[RedisPipeline](queueKey).replicateA(maxSize)
         .pipeline
         .run(redisConnection)
-        .map(l => Chunk.seq(l.flatten))
+        .flatMap{l => 
+          val x = l.flatten
+          x match {
+            case Nil => Timer[F].sleep(pollingInterval) >> dequeueChunk1(maxSize)
+            case otherwise => Chunk.seq(otherwise).pure[F]
+          }
+        }
     
-    def tryDequeueChunk1(maxSize: Int): F[Option[cats.Id[Chunk[String]]]] = ???
+    def tryDequeueChunk1(maxSize: Int): F[Option[cats.Id[Chunk[String]]]] = 
+      RedisCommands.lpop[RedisPipeline](queueKey).replicateA(maxSize)
+        .pipeline
+        .run(redisConnection)
+        .map{l => 
+          if (l.exists(_.isDefined)) Some(Chunk.seq(l.flatten))
+          else None
+        }
     
     def dequeueChunk(maxSize: Int): fs2.Stream[F,String] =
       fs2.Stream.repeatEval(dequeueChunk1(maxSize))
