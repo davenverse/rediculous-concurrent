@@ -51,12 +51,14 @@ object RedisSemaphore {
 
   def build[F[_]: Concurrent: Timer](
     redisConnection: RedisConnection[F],
-    semname: String,
-    limit: Long,
-    timeout: FiniteDuration,
-    poll: FiniteDuration,
+    semname: String, // The Name of the semaphore, also operates as the base of the redis key
+    limit: Long, // Total Number of Permits Allowed
+    timeout: FiniteDuration, // Maximum Time A Semaphore Can Be Held For. Will remove durations older than this
+    poll: FiniteDuration = 10.millis, // On acquire, how frequently
+    lockAcquireTimeout: FiniteDuration = 1.second, // How long to wait on acquiring a lock
+    lockTotalTimeout: FiniteDuration = 10.seconds, // How long a lock can be held total (Don't see why we'd hit this)
   ): F[RedisBackedSemaphore[F]] = Ref.of(List.empty[UUID]).map(
-    new RedisBackedSemaphore[F](redisConnection, semname, limit, timeout, poll, _)
+    new RedisBackedSemaphore[F](redisConnection, semname, limit, timeout, poll, lockAcquireTimeout, lockTotalTimeout, _)
   )
 
   class RedisBackedSemaphore[F[_]: Concurrent: Timer](
@@ -65,6 +67,8 @@ object RedisSemaphore {
     limit: Long,
     timeout: FiniteDuration,
     poll: FiniteDuration,
+    lockAcquireTimeout: FiniteDuration,
+    lockTotalTimeout: FiniteDuration,
     ownedIdentifiers: Ref[F, List[UUID]]
   ){
 
@@ -76,7 +80,7 @@ object RedisSemaphore {
       }, timeout)
 
     def tryAcquire: F[Boolean] = 
-      RedisLock.tryAcquireLock(redisConnection, semname,timeout, timeout)
+      RedisLock.tryAcquireLock(redisConnection, semname,lockAcquireTimeout, lockTotalTimeout)
         .flatMap{
           case Some(lockIdentifier) => 
             tryAcquireSemaphore(redisConnection, semname, limit, timeout).flatTap{_ => 
@@ -111,7 +115,6 @@ object RedisSemaphore {
       val now = System.currentTimeMillis().millis
       val random = UUID.randomUUID()
       val identifier = random.toString()
-
       val czset = semname ++ ":owner"
       val ctr = semname ++ ":counter"
 
