@@ -27,11 +27,11 @@ object Main extends IOApp {
     } yield connection
 
     r.use{ connection => 
-      val ref = RedisRef.liftedDefaultStorage(
-        RedisRef.lockedOptionRef(connection, "ref-test", 1.seconds, 10.seconds, RedisCommands.SetOpts(None, None, None, false)),
-        "0"
-      ).imap(_.toInt)(_.toString)
-      val action = ref.update(_ + 1)
+      // val ref = RedisRef.liftedDefaultStorage(
+      //   RedisRef.lockedOptionRef(connection, "ref-test", 1.seconds, 10.seconds, RedisCommands.SetOpts(None, None, None, false)),
+      //   "0"
+      // ).imap(_.toInt)(_.toString)
+      // val action = ref.update(_ + 1)
       val now = IO.delay(System.currentTimeMillis().millis)
       def time[A](io: IO[A]): IO[A] = 
         (now, io, now).tupled.flatMap{
@@ -39,15 +39,15 @@ object Main extends IOApp {
             (end - begin).putStrLn.map(_ => out)
         }
       // action >>
-      time(
-        // Stream
-        (
-          Stream.eval(action).repeat.take(10000)
-        )//
-          .compile
-          .drain
-      ) >> 
-      ref.get.flatTap(_.putStrLn)
+      // time(
+      //   // Stream
+      //   (
+      //     Stream.eval(action).repeat.take(10000)
+      //   )//
+      //     .compile
+      //     .drain
+      // ) >> 
+      // ref.get.flatTap(_.putStrLn)
         
       // action.replicateA(100000).void
       // val queue = RedisQueue.unbounded(connection, "queue-test", 50.millis)
@@ -65,14 +65,16 @@ object Main extends IOApp {
       //   .compile
       //   .drain
       //   .timeout(15.seconds)
-      // // RedisSemaphore.build(connection, "sem", 2L, 10.seconds, 10.milli).flatMap{
-      //   sem => 
+      RedisSemaphore.build(connection, "sem-test-1", 2L, 10.seconds, 10.milli).flatMap{
+        sem => 
 
-      //   sem.tryAcquire >>//.flatTap(_.putStrLn) >>
-      //   sem.tryAcquire >>//.flatTap(_.putStrLn) >> //>>
-      //   sem.tryAcquire.map(b => s"Final Try Acquire Attempt $b").flatTap(_.putStrLn) //>>
+        sem.tryAcquire >>//.flatTap(_.putStrLn) >>
+        sem.tryAcquire >>//.flatTap(_.putStrLn) >> //>>
+        time(IO.race(sem.acquire, Timer[IO].sleep(0.5.seconds) >> sem.release >> Timer[IO].sleep(0.5.seconds)))
+          .flatTap(_.putStrLn)
+        
         // sem.release.replicateA(2)
-      // }
+      }
       // val lockName = "lock:foo"
 
       // RedisSemaphore.semaphoreWithLimitLock(connection, "semaphoretest", 2, 10.seconds).use

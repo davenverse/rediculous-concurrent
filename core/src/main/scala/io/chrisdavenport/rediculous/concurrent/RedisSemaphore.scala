@@ -42,7 +42,6 @@ object MiniSemaphore {
     def release: F[Unit] = r.release
     
     def withPermit[A](f: F[A]): F[A] = r.withPermit.use(_ => f)
-    
   }
 
 }
