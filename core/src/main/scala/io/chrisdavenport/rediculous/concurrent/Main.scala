@@ -65,16 +65,18 @@ object Main extends IOApp {
       //   .compile
       //   .drain
       //   .timeout(15.seconds)
-      RedisSemaphore.build(connection, "sem-test-1", 2L, 10.seconds, 10.milli).flatMap{
-        sem => 
+      val deferred = RedisDeferred.fromKey(connection, "deferred-test", 100.millis, 10.seconds)
+      time(IO.race(deferred.get, Timer[IO].sleep(0.5.seconds) >> deferred.complete("Amazing") >> Timer[IO].sleep(0.5.seconds))).flatTap(_.putStrLn)
+      // RedisSemaphore.build(connection, "sem-test-1", 2L, 10.seconds, 10.milli).flatMap{
+      //   sem => 
 
-        sem.tryAcquire >>//.flatTap(_.putStrLn) >>
-        sem.tryAcquire >>//.flatTap(_.putStrLn) >> //>>
-        time(IO.race(sem.acquire, Timer[IO].sleep(0.5.seconds) >> sem.release >> Timer[IO].sleep(0.5.seconds)))
-          .flatTap(_.putStrLn)
+      //   sem.tryAcquire >>//.flatTap(_.putStrLn) >>
+      //   sem.tryAcquire >>//.flatTap(_.putStrLn) >> //>>
+      //   time(IO.race(sem.acquire, Timer[IO].sleep(0.5.seconds) >> sem.release >> Timer[IO].sleep(0.5.seconds)))
+      //     .flatTap(_.putStrLn)
         
-        // sem.release.replicateA(2)
-      }
+      //   // sem.release.replicateA(2)
+      // }
       // val lockName = "lock:foo"
 
       // RedisSemaphore.semaphoreWithLimitLock(connection, "semaphoretest", 2, 10.seconds).use
