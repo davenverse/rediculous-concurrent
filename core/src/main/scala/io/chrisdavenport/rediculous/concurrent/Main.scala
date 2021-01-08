@@ -27,17 +27,24 @@ object Main extends IOApp {
     } yield connection
 
     r.use{ connection => 
-      // val ref = RedisRef.liftedDefaultStorage(
-      //   RedisRef.lockedOptionRef(connection, "ref-test", 1.seconds, 10.seconds, RedisCommands.SetOpts(None, None, None, false)),
-      //   "0"
-      // ).imap(_.toInt)(_.toString)
-      // val action = ref.update(_ + 1)
+      val ref = RedisRef.liftedDefaultStorage(
+        RedisRef.lockedOptionRef(connection, "ref-test", 1.seconds, 10.seconds, RedisCommands.SetOpts(None, None, None, false)),
+        "0"
+      ).imap(_.toInt)(_.toString)
+      val action = ref.modify{x => 
+        val y = x + 1
+        (y,y)
+      }
       val now = IO.delay(System.currentTimeMillis().millis)
       def time[A](io: IO[A]): IO[A] = 
         (now, io, now).tupled.flatMap{
           case (begin, out, end) => 
             (end - begin).putStrLn.map(_ => out)
         }
+
+      val readLn = IO(scala.io.StdIn.readLine())
+
+      (readLn >> action.flatTap(_.putStrLn)).replicateA(5)
       // action >>
       // time(
       //   // Stream
@@ -65,8 +72,8 @@ object Main extends IOApp {
       //   .compile
       //   .drain
       //   .timeout(15.seconds)
-      val deferred = RedisDeferred.fromKey(connection, "deferred-test", 100.millis, 10.seconds)
-      time(IO.race(deferred.get, Timer[IO].sleep(0.5.seconds) >> deferred.complete("Amazing") >> Timer[IO].sleep(0.5.seconds))).flatTap(_.putStrLn)
+      // val deferred = RedisDeferred.fromKey(connection, "deferred-test", 100.millis, 10.seconds)
+      // time(IO.race(deferred.get, Timer[IO].sleep(0.5.seconds) >> deferred.complete("Amazing") >> Timer[IO].sleep(0.5.seconds))).flatTap(_.putStrLn)
       // RedisSemaphore.build(connection, "sem-test-1", 2L, 10.seconds, 10.milli).flatMap{
       //   sem => 
 

@@ -29,10 +29,13 @@ object RedisCircuit {
     resetTimeout: FiniteDuration,
     exponentialBackoffFactor: Double,
     maxResetTimeout: Duration
-  ): F[CircuitBreaker[F]] = {
-    RedisRef.lockedLocation(redisConnection, key, (CircuitBreaker.Closed(0): State).asJson.noSpaces, acquireTimeout, lockDuration, setOpts)
-      .map(_.imap(parser.parse(_).flatMap(_.as[State]).getOrElse(throw new Throwable(s"Bad Encoding At Circuit at Location $key")))(_.asJson.noSpaces))
-      .map(CircuitBreaker.unsafe(_, maxFailures, resetTimeout, exponentialBackoffFactor, maxResetTimeout, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit))
+  ): CircuitBreaker[F] = {
+    val ref = RedisRef.liftedDefaultStorage(
+      RedisRef.lockedOptionRef(redisConnection, key, acquireTimeout, lockDuration, setOpts)
+        .imap(_.map(parser.parse(_).flatMap(_.as[State]).getOrElse(throw new Throwable(s"Bad Encoding At Circuit at Location $key"))))(_.map(_.asJson.noSpaces)),
+      CircuitBreaker.Closed(0)
+    )
+    CircuitBreaker.unsafe(ref, maxFailures, resetTimeout, exponentialBackoffFactor, maxResetTimeout, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit)
   }
 
   def keyCircuit[F[_]: Concurrent: Timer](
@@ -56,6 +59,14 @@ object RedisCircuit {
     }
   }
 
+  implicit private val eqState: Eq[State] = Eq.instance{
+    case (HalfOpen, HalfOpen) => true
+    case (Closed(i), Closed(i2)) => i === i2
+    case (Open(started1, reset1), Open(started2, reset2)) => 
+      started1 === started2 &&
+        reset1 === reset2
+    case (_, _) => false
+  }
 
   implicit private final val finiteDurationDecoder: Decoder[FiniteDuration] =
     new Decoder[FiniteDuration] {
