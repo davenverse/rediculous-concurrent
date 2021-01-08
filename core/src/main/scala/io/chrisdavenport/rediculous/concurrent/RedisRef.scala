@@ -1,11 +1,11 @@
 package io.chrisdavenport.rediculous.concurrent
 
+import cats._
 import cats.syntax.all._
 import io.chrisdavenport.rediculous._
 import cats.effect._
 import cats.effect.concurrent._
 import io.chrisdavenport.rediculous.RedisTransaction.TxResult.{Aborted, Success, Error}
-import cats.Applicative
 import scala.concurrent.duration._
 import cats.data.NonEmptyList
 import io.chrisdavenport.rediculous.RedisProtocol.Status
@@ -121,37 +121,37 @@ object RedisRef {
     default: A
   ): Ref[F, A] = ref.imap(_.getOrElse(default))(_.some)
 
-  def liftedDefaultStorage[F[_]: Sync](
-    ref: Ref[F, Option[String]],
-    default: String 
-  ): Ref[F, String] = new LiftedRefDefaultStorage[F](ref, default)
+  def liftedDefaultStorage[F[_]: Sync, A: Eq](
+    ref: Ref[F, Option[A]],
+    default: A 
+  ): Ref[F, A] = new LiftedRefDefaultStorage[F, A](ref, default)
 
   /**
    * Operates with default and anytime default is present instead information is removed from underlying ref.
    **/
-  private class LiftedRefDefaultStorage[F[_]: Sync](
-    val ref: Ref[F, Option[String]],
-    val default: String
-  ) extends Ref[F, String]{
-    def get: F[String] = ref.get.map(_.getOrElse(default))
+  private class LiftedRefDefaultStorage[F[_]: Sync, A: Eq](
+    val ref: Ref[F, Option[A]],
+    val default: A
+  ) extends Ref[F, A]{
+    def get: F[A] = ref.get.map(_.getOrElse(default))
     
-    def set(a: String): F[Unit] = {
+    def set(a: A): F[Unit] = {
       if (a =!= default) ref.set(a.some)
       else ref.set(None)
     }
     
-    def access: F[(String, String => F[Boolean])] = ref.access.map{
+    def access: F[(A, A => F[Boolean])] = ref.access.map{
       case (opt, cb) => 
-        (opt.getOrElse(default), {s: String => 
+        (opt.getOrElse(default), {s: A => 
           if (s =!= default) cb(s.some)
           else cb(None)
         })
     }
     
-    def tryUpdate(f: String => String): F[Boolean] = 
-      tryModify{s => (f(s), ())}.map(_.isDefined)
+    def tryUpdate(f: A => A): F[Boolean] = 
+      tryModify{s: A => (f(s), ())}.map(_.isDefined)
     
-    def tryModify[B](f: String => (String, B)): F[Option[B]] =
+    def tryModify[B](f: A => (A, B)): F[Option[B]] =
       ref.tryModify{opt => 
         val s = opt.getOrElse(default)
         val (after, out) = f(s)
@@ -159,10 +159,10 @@ object RedisRef {
         else (None, out)
       }
     
-    def update(f: String => String): F[Unit] = 
-      modify(s => (f(s), ()))
+    def update(f: A => A): F[Unit] = 
+      modify((s: A) => (f(s), ()))
     
-    def modify[B](f: String => (String, B)): F[B] = 
+    def modify[B](f: A => (A, B)): F[B] = 
       ref.modify{opt => 
         val a = opt.getOrElse(default)
         val (out, b) = f(a)
@@ -170,10 +170,10 @@ object RedisRef {
         else (None, b)
       }
     
-    def tryModifyState[B](state: cats.data.State[String,B]): F[Option[B]] = 
+    def tryModifyState[B](state: cats.data.State[A,B]): F[Option[B]] = 
       tryModify{s => state.run(s).value}
     
-    def modifyState[B](state: cats.data.State[String,B]): F[B] = 
+    def modifyState[B](state: cats.data.State[A,B]): F[B] = 
       modify{s => state.run(s).value}
     
   }

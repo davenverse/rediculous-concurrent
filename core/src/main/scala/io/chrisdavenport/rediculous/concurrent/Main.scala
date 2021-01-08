@@ -27,11 +27,14 @@ object Main extends IOApp {
     } yield connection
 
     r.use{ connection => 
-      // val ref = RedisRef.liftedDefaultStorage(
-      //   RedisRef.lockedOptionRef(connection, "ref-test", 1.seconds, 10.seconds, RedisCommands.SetOpts(None, None, None, false)),
-      //   "0"
-      // ).imap(_.toInt)(_.toString)
-      // val action = ref.update(_ + 1)
+      val ref = RedisRef.liftedDefaultStorage(
+        RedisRef.lockedOptionRef(connection, "ref-test", 1.seconds, 10.seconds, RedisCommands.SetOpts(None, None, None, false)),
+        "0"
+      ).imap(_.toInt)(_.toString)
+      val action = ref.modify{x => 
+        val y = x + 1
+        (y,y)
+      }
       val now = IO.delay(System.currentTimeMillis().millis)
       def time[A](io: IO[A]): IO[A] = 
         (now, io, now).tupled.flatMap{
