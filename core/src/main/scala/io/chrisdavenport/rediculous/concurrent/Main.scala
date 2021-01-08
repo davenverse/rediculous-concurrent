@@ -38,6 +38,26 @@ object Main extends IOApp {
           case (begin, out, end) => 
             (end - begin).putStrLn.map(_ => out)
         }
+
+      RedisCountdownLatch.createOrAccess(
+        connection,
+        "test-countdown-latch", 
+        5, 
+        1.seconds, 
+        10.seconds, 
+        100.millis, 
+        60.seconds, 
+        RedisCommands.SetOpts(Some(60), None, None, false)
+      ).flatMap{
+        latch => 
+        def release2: IO[Unit] = latch.release >> IO(scala.io.StdIn.readLine()) >> Timer[IO].sleep(100.millis) >> release2
+
+        RedisCommands.get[Redis[IO, *]]("test-countdown-latch").run(connection).flatMap(_.putStrLn) >> 
+        time(IO.race(
+          latch.await, 
+          release2
+        )).flatMap(_.putStrLn)
+      }
       // action >>
       // time(
       //   // Stream
@@ -65,8 +85,8 @@ object Main extends IOApp {
       //   .compile
       //   .drain
       //   .timeout(15.seconds)
-      val deferred = RedisDeferred.fromKey(connection, "deferred-test", 100.millis, 10.seconds)
-      time(IO.race(deferred.get, Timer[IO].sleep(0.5.seconds) >> deferred.complete("Amazing") >> Timer[IO].sleep(0.5.seconds))).flatTap(_.putStrLn)
+      // val deferred = RedisDeferred.fromKey(connection, "deferred-test", 100.millis, 10.seconds)
+      // time(IO.race(deferred.get, Timer[IO].sleep(0.5.seconds) >> deferred.complete("Amazing") >> Timer[IO].sleep(0.5.seconds))).flatTap(_.putStrLn)
       // RedisSemaphore.build(connection, "sem-test-1", 2L, 10.seconds, 10.milli).flatMap{
       //   sem => 
 

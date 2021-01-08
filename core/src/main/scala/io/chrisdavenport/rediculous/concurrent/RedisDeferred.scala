@@ -2,6 +2,7 @@ package io.chrisdavenport.rediculous.concurrent
 
 import io.chrisdavenport.rediculous._
 import cats.effect._
+import cats.data.NonEmptyList
 import cats.effect.concurrent._
 import cats.syntax.all._
 import scala.concurrent.duration.FiniteDuration
@@ -48,18 +49,22 @@ object RedisDeferred {
         case Some(a) => a.pure[F]
       }
     
-    def complete(a: String): F[Unit] = 
-      RedisCommands.set(keyLocation, a, RedisCommands.SetOpts(None, Some(lifetime.toMillis), Some(Condition.Nx), false))
+    def complete(a: String): F[Unit] = {
+      // val ctxState = RedisResult.option[RedisProtocol.Status](RedisResult.status)
+      RedisCtx[Redis[F, *]].keyed[Option[RedisProtocol.Status]](keyLocation, NonEmptyList.of("SET", keyLocation, a, "PX", lifetime.toMillis.toString(), "NX"))
+      // RedisCommands.set(keyLocation, a, RedisCommands.SetOpts(None, Some(lifetime.toMillis), Some(Condition.Nx), false))
         .run(redisConnection)
         .flatMap{
-          case Ok => Applicative[F].unit
-          case Pong => Concurrent[F].raiseError[Unit](
+          case None => Timer[F].sleep(pollingInterval) >> complete(a)
+          case Some(Ok) => Applicative[F].unit
+          case Some(Pong) => Concurrent[F].raiseError[Unit](
             new IllegalStateException("Attempting to complete a Deferred got Pong: should never arrive here")
           )
-          case Status(getStatus) => Concurrent[F].raiseError[Unit](
+          case Some(Status(getStatus)) => Concurrent[F].raiseError[Unit](
             new IllegalStateException("Attempting to complete a Deferred that has already been completed")
           )
         }
+    }
     
 
   }

@@ -116,10 +116,10 @@ object RedisRef {
 
 
   // Always stores information in Some(x) format in the underlying ref
-  def liftedSimple[F[_]: Sync](
-    ref: Ref[F, Option[String]],
-    default: String
-  ): Ref[F, String] = ref.imap(_.getOrElse(default))(_.some)
+  def liftedSimple[F[_]: Sync, A](
+    ref: Ref[F, Option[A]],
+    default: A
+  ): Ref[F, A] = ref.imap(_.getOrElse(default))(_.some)
 
   def liftedDefaultStorage[F[_]: Sync](
     ref: Ref[F, Option[String]],
