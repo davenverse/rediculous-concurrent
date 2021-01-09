@@ -41,27 +41,40 @@ object Main extends IOApp {
           case (begin, out, end) => 
             (end - begin).putStrLn.map(_ => out)
         }
-      val queue = RedisQueue.boundedQueue(connection, "bounded-queue-test", 10, 10.millis)
 
-      queue.dequeueChunk1(100) >>
-      Stream.awakeDelay[IO](0.5.seconds).zipRight(
-        Stream.iterate[IO, Int](1)(_ + 1)
-      )
-        .evalMap(i => queue.enqueue1(i.toString()))
-        .concurrently(
-          Stream.awakeDelay[IO](1.second).zipRight(
-            Stream.repeatEval(RedisCommands.lrange[Redis[IO, *]]("bounded-queue-test", 0, -1).run(connection))
-              .evalMap(_.putStrLn)
-          )
-        )
-        .concurrently(
-          Stream.awakeDelay[IO](0.75.second).zipRight(
-            Stream.repeatEval(queue.dequeue1)
-              .evalMap(i => s"Removed: $i".putStrLn)
-          )
-        )
-        .timeout(15.seconds)
-        .compile.drain
+        // Layered Cache
+        val cache = RedisCache.instance(connection, "namespace1", RedisCommands.SetOpts(Some(60), None, None, false))
+        val cache2 = RedisCache.instance(connection, "namespace2", RedisCommands.SetOpts(Some(60), None, None, false))
+        val layered = RedisCache.layer(cache, cache2)
+
+        RedisCommands.get[Redis[IO, *]]("namespace1:test3").run(connection).flatTap(_.putStrLn) >>
+        cache2.insert("test3", "value1") >> 
+        layered.lookup("test3").flatTap(_.putStrLn) >> 
+        RedisCommands.get[Redis[IO, *]]("namespace1:test3").run(connection).flatTap(_.putStrLn) >>
+        RedisCommands.get[Redis[IO, *]]("namespace2:test3").run(connection).flatTap(_.putStrLn)
+
+
+      // val queue = RedisQueue.boundedStack(connection, "bounded-queue-test", 10, 10.millis)
+
+      // queue.dequeueChunk1(100) >>
+      // Stream.awakeDelay[IO](0.5.seconds).zipRight(
+      //   Stream.iterate[IO, Int](1)(_ + 1)
+      // )
+      //   .evalMap(i => queue.enqueue1(i.toString()))
+      //   .concurrently(
+      //     Stream.awakeDelay[IO](1.second).zipRight(
+      //       Stream.repeatEval(RedisCommands.lrange[Redis[IO, *]]("bounded-queue-test", 0, -1).run(connection))
+      //         .evalMap(_.putStrLn)
+      //     )
+      //   )
+      //   .concurrently(
+      //     Stream.awakeDelay[IO](0.4.second).zipRight(
+      //       Stream.repeatEval(queue.dequeue1)
+      //         .evalMap(i => s"Removed: $i".putStrLn)
+      //     )
+      //   )
+      //   .timeout(15.seconds)
+      //   .compile.drain
       // RedisCountdownLatch.createOrAccess(
       //   connection,
       //   "test-countdown-latch", 
