@@ -27,14 +27,14 @@ object Main extends IOApp {
     } yield connection
 
     r.use{ connection => 
-      val ref = RedisRef.liftedDefaultStorage(
-        RedisRef.lockedOptionRef(connection, "ref-test", 1.seconds, 10.seconds, RedisCommands.SetOpts(None, None, None, false)),
-        "0"
-      ).imap(_.toInt)(_.toString)
-      val action = ref.modify{x => 
-        val y = x + 1
-        (y,y)
-      }
+      // val ref = RedisRef.liftedDefaultStorage(
+      //   RedisRef.lockedOptionRef(connection, "ref-test", 1.seconds, 10.seconds, RedisCommands.SetOpts(None, None, None, false)),
+      //   "0"
+      // ).imap(_.toInt)(_.toString)
+      // val action = ref.modify{x => 
+      //   val y = x + 1
+      //   (y,y)
+      // }
       val now = IO.delay(System.currentTimeMillis().millis)
       def time[A](io: IO[A]): IO[A] = 
         (now, io, now).tupled.flatMap{
@@ -53,13 +53,17 @@ object Main extends IOApp {
         RedisCommands.SetOpts(Some(60), None, None, false)
       ).flatMap{
         latch => 
-        def release2: IO[Unit] = latch.release >> IO(scala.io.StdIn.readLine()) >> Timer[IO].sleep(100.millis) >> release2
+        def release2: IO[Unit] = latch.release >>
+          RedisCommands.get[Redis[IO, *]]("test-countdown-latch").run(connection).flatMap(_.putStrLn) >>
+          Timer[IO].sleep(2000.millis) >> release2
 
         RedisCommands.get[Redis[IO, *]]("test-countdown-latch").run(connection).flatMap(_.putStrLn) >> 
         time(IO.race(
           latch.await, 
           release2
-        )).flatMap(_.putStrLn)
+        )).flatMap(_.putStrLn) >>
+        RedisCommands.get[Redis[IO, *]]("test-countdown-latch").run(connection).flatMap(_.putStrLn) >>
+        RedisCommands.get[Redis[IO, *]]("test-countdown-latch:gate").run(connection).flatMap(_.putStrLn)
       }
       // action >>
       // time(

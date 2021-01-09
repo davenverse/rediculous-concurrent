@@ -9,6 +9,8 @@ import io.chrisdavenport.rediculous.RedisTransaction.TxResult.{Aborted, Success,
 import scala.concurrent.duration._
 import cats.data.NonEmptyList
 import io.chrisdavenport.rediculous.RedisProtocol.Status
+import io.circe._
+import io.circe.syntax._
 
 
 object RedisRef {
@@ -125,6 +127,12 @@ object RedisRef {
     ref: Ref[F, Option[A]],
     default: A 
   ): Ref[F, A] = new LiftedRefDefaultStorage[F, A](ref, default)
+
+  def jsonRef[F[_]: Sync, A: Decoder: Encoder](ref: Ref[F, String]): Ref[F, A] = 
+    ref.imap(s => parser.parse(s).flatMap(_.as[A]).fold(throw _, identity))(_.asJson.noSpaces)
+
+  def optionJsonRef[F[_]: Sync, A: Decoder: Encoder](ref: Ref[F, Option[String]]): Ref[F, Option[A]] =
+    ref.imap(o => o.map(s => parser.parse(s).flatMap(_.as[A]).fold(throw _, identity)))(o => o.map(_.asJson.noSpaces))
 
   /**
    * Operates with default and anytime default is present instead information is removed from underlying ref.
