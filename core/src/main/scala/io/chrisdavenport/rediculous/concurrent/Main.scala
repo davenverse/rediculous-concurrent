@@ -41,30 +41,50 @@ object Main extends IOApp {
           case (begin, out, end) => 
             (end - begin).putStrLn.map(_ => out)
         }
+      val queue = RedisQueue.boundedQueue(connection, "bounded-queue-test", 10, 10.millis)
 
-      RedisCountdownLatch.createOrAccess(
-        connection,
-        "test-countdown-latch", 
-        5, 
-        1.seconds, 
-        10.seconds, 
-        100.millis, 
-        60.seconds, 
-        RedisCommands.SetOpts(Some(60), None, None, false)
-      ).flatMap{
-        latch => 
-        def release2: IO[Unit] = latch.release >>
-          RedisCommands.get[Redis[IO, *]]("test-countdown-latch").run(connection).flatMap(_.putStrLn) >>
-          Timer[IO].sleep(2000.millis) >> release2
+      queue.dequeueChunk1(100) >>
+      Stream.awakeDelay[IO](0.5.seconds).zipRight(
+        Stream.iterate[IO, Int](1)(_ + 1)
+      )
+        .evalMap(i => queue.enqueue1(i.toString()))
+        .concurrently(
+          Stream.awakeDelay[IO](1.second).zipRight(
+            Stream.repeatEval(RedisCommands.lrange[Redis[IO, *]]("bounded-queue-test", 0, -1).run(connection))
+              .evalMap(_.putStrLn)
+          )
+        )
+        .concurrently(
+          Stream.awakeDelay[IO](0.75.second).zipRight(
+            Stream.repeatEval(queue.dequeue1)
+              .evalMap(i => s"Removed: $i".putStrLn)
+          )
+        )
+        .timeout(15.seconds)
+        .compile.drain
+      // RedisCountdownLatch.createOrAccess(
+      //   connection,
+      //   "test-countdown-latch", 
+      //   5, 
+      //   1.seconds, 
+      //   10.seconds, 
+      //   100.millis, 
+      //   60.seconds, 
+      //   RedisCommands.SetOpts(Some(60), None, None, false)
+      // ).flatMap{
+      //   latch => 
+      //   def release2: IO[Unit] = latch.release >>
+      //     RedisCommands.get[Redis[IO, *]]("test-countdown-latch").run(connection).flatMap(_.putStrLn) >>
+      //     Timer[IO].sleep(2000.millis) >> release2
 
-        RedisCommands.get[Redis[IO, *]]("test-countdown-latch").run(connection).flatMap(_.putStrLn) >> 
-        time(IO.race(
-          latch.await, 
-          release2
-        )).flatMap(_.putStrLn) >>
-        RedisCommands.get[Redis[IO, *]]("test-countdown-latch").run(connection).flatMap(_.putStrLn) >>
-        RedisCommands.get[Redis[IO, *]]("test-countdown-latch:gate").run(connection).flatMap(_.putStrLn)
-      }
+      //   RedisCommands.get[Redis[IO, *]]("test-countdown-latch").run(connection).flatMap(_.putStrLn) >> 
+      //   time(IO.race(
+      //     latch.await, 
+      //     release2
+      //   )).flatMap(_.putStrLn) >>
+      //   RedisCommands.get[Redis[IO, *]]("test-countdown-latch").run(connection).flatMap(_.putStrLn) >>
+      //   RedisCommands.get[Redis[IO, *]]("test-countdown-latch:gate").run(connection).flatMap(_.putStrLn)
+      // }
       // action >>
       // time(
       //   // Stream

@@ -31,8 +31,7 @@ object RedisCircuit {
     maxResetTimeout: Duration
   ): CircuitBreaker[F] = {
     val ref = RedisRef.liftedDefaultStorage(
-      RedisRef.lockedOptionRef(redisConnection, key, acquireTimeout, lockDuration, setOpts)
-        .imap(_.map(parser.parse(_).flatMap(_.as[State]).getOrElse(throw new Throwable(s"Bad Encoding At Circuit at Location $key"))))(_.map(_.asJson.noSpaces)),
+      RedisRef.optionJsonRef[F, State](RedisRef.lockedOptionRef(redisConnection, key, acquireTimeout, lockDuration, setOpts)),
       CircuitBreaker.Closed(0)
     )
     CircuitBreaker.unsafe(ref, maxFailures, resetTimeout, exponentialBackoffFactor, maxResetTimeout, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit)
@@ -53,9 +52,9 @@ object RedisCircuit {
 
     {key: String => 
       val ref = RedisRef.liftedDefaultStorage(base.apply(key), closed)
-      .imap(parser.parse(_).flatMap(_.as[State]).getOrElse(throw new Throwable(s"Bad Encoding At Circuit at Location $key")))(_.asJson.noSpaces)
+      val stateRef = RedisRef.jsonRef[F, State](ref)
 
-      CircuitBreaker.unsafe(ref, maxFailures, resetTimeout, exponentialBackoffFactor, maxResetTimeout, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit)
+      CircuitBreaker.unsafe(stateRef, maxFailures, resetTimeout, exponentialBackoffFactor, maxResetTimeout, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit)
     }
   }
 
