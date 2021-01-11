@@ -83,6 +83,8 @@ object RedisQueue {
             case otherwise => Chunk.seq(otherwise).pure[F]
           }
         }
+
+    override def dequeue: fs2.Stream[F,String] = dequeueChunk(512)
     
     def tryDequeueChunk1(maxSize: Int): F[Option[cats.Id[Chunk[String]]]] = 
       RedisCommands.lpop[RedisPipeline](queueKey).replicateA(maxSize)
