@@ -72,6 +72,12 @@ object RedisQueue {
     def tryDequeue1: F[Option[String]] = 
       RedisCommands.lpop(queueKey).run(redisConnection)
     
+    /**
+      * Returns a nonEmpty chunk whose size is the result of 
+      * maxSize calls of lpop run in a pipelined request. Since each
+      * size is a physical call to redis it is highly recommended this number stay
+      * far lower than the domain of Int.
+      */
     def dequeueChunk1(maxSize: Int): F[cats.Id[Chunk[String]]] = 
       RedisCommands.lpop[RedisPipeline](queueKey).replicateA(maxSize)
         .pipeline
