@@ -1,5 +1,4 @@
-package io.chrisdavenport.rediculous.concurrent
-
+import io.chrisdavenport.rediculous.concurrent._
 import io.chrisdavenport.rediculous._
 import cats.implicits._
 import cats.effect._

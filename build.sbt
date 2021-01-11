@@ -23,6 +23,14 @@ lazy val core = project.in(file("core"))
     name := "rediculous-concurrent"
   )
 
+lazy val examples = project.in(file("examples"))
+  .settings(commonSettings)
+  .dependsOn(core)
+  .settings(
+    skip in publish := true,
+    name := "rediculous-examples"
+  )
+
 lazy val site = project.in(file("site"))
   .disablePlugins(MimaPlugin)
   .enablePlugins(MicrositesPlugin)
