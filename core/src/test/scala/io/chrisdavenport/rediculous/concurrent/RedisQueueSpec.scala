@@ -30,6 +30,16 @@ trait RedisQueueSpec extends RedisSpec {
     queue.dequeue1.map(assertEquals(_, expected))
   }
 
+  redisResource.test("it should be able to enqueue and dequeue multiple elements concurrently") { redis =>
+    val queue = redisQueue(redis, Random.key)
+    val expected = Stream.range(1, 4).map(_.toString())
+    queue
+      .dequeue
+      .take(expected.toList.size)
+      .concurrently(expected.covary[IO].through(queue.enqueue))
+      .compile.toList.map(assertEquals(_, expected.toList))
+  }
+
   def redisQueue(redis: RedisConnection[IO], queueKey: String): Queue[IO, String]
 
 }
@@ -44,12 +54,12 @@ class RedisUnBoundedQueueSpec extends RedisQueueSpec {
     RedisQueue.unboundedQueue(redis, queueKey, 10.millis)
 }
 
-class RedisUnboundedStackSpec extends RedisQueueSpec {
-  def redisQueue(redis: RedisConnection[IO], queueKey: String): Queue[IO,String] = 
-    RedisQueue.unboundedStack(redis, queueKey, 10.millis)
-}
+// class RedisUnboundedStackSpec extends RedisQueueSpec {
+//   def redisQueue(redis: RedisConnection[IO], queueKey: String): Queue[IO,String] = 
+//     RedisQueue.unboundedStack(redis, queueKey, 10.millis)
+// }
 
-class RedisBoundedStackSpec extends RedisQueueSpec {
-  def redisQueue(redis: RedisConnection[IO], queueKey: String): Queue[IO,String] = 
-    RedisQueue.boundedStack(redis, queueKey, 10, 10.millis)
-}
+// class RedisBoundedStackSpec extends RedisQueueSpec {
+//   def redisQueue(redis: RedisConnection[IO], queueKey: String): Queue[IO,String] = 
+//     RedisQueue.boundedStack(redis, queueKey, 10, 10.millis)
+// }
