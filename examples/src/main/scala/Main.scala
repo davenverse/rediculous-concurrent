@@ -41,16 +41,25 @@ object Main extends IOApp {
             (end - begin).putStrLn.map(_ => out)
         }
 
-        // Layered Cache
-        val cache = RedisCache.instance(connection, "namespace1", RedisCommands.SetOpts(Some(60), None, None, false))
-        val cache2 = RedisCache.instance(connection, "namespace2", RedisCommands.SetOpts(Some(60), None, None, false))
-        val layered = RedisCache.layer(cache, cache2)
+      val barrier = RedisCyclicBarrier.create[IO](connection, "test-cyclic-barrier", 2, 1.seconds, 1.seconds, 10.millis, 20.minutes, RedisCommands.SetOpts(None, Some(24.hours.toMillis), None, false))
 
-        RedisCommands.get[Redis[IO, *]]("namespace1:test3").run(connection).flatTap(_.putStrLn) >>
-        cache2.insert("test3", "value1") >> 
-        layered.lookup("test3").flatTap(_.putStrLn) >> 
-        RedisCommands.get[Redis[IO, *]]("namespace1:test3").run(connection).flatTap(_.putStrLn) >>
-        RedisCommands.get[Redis[IO, *]]("namespace2:test3").run(connection).flatTap(_.putStrLn)
+      Stream.repeatEval(
+        time(
+          (barrier.await, Timer[IO].sleep(500.millis) >> barrier.await).parTupled
+        )
+      ).take(10).compile.drain
+
+
+        // // Layered Cache
+        // val cache = RedisCache.instance(connection, "namespace1", RedisCommands.SetOpts(Some(60), None, None, false))
+        // val cache2 = RedisCache.instance(connection, "namespace2", RedisCommands.SetOpts(Some(60), None, None, false))
+        // val layered = RedisCache.layer(cache, cache2)
+
+        // RedisCommands.get[Redis[IO, *]]("namespace1:test3").run(connection).flatTap(_.putStrLn) >>
+        // cache2.insert("test3", "value1") >> 
+        // layered.lookup("test3").flatTap(_.putStrLn) >> 
+        // RedisCommands.get[Redis[IO, *]]("namespace1:test3").run(connection).flatTap(_.putStrLn) >>
+        // RedisCommands.get[Redis[IO, *]]("namespace2:test3").run(connection).flatTap(_.putStrLn)
 
 
       // val queue = RedisQueue.boundedStack(connection, "bounded-queue-test", 10, 10.millis)
