@@ -15,7 +15,7 @@ val betterMonadicForV = "0.3.1"
 lazy val `rediculous-concurrent` = project.in(file("."))
   .disablePlugins(MimaPlugin)
   .enablePlugins(NoPublishPlugin)
-  .aggregate(core)
+  .aggregate(core, examples)
 
 lazy val core = project.in(file("core"))
   .settings(commonSettings)
