@@ -54,12 +54,12 @@ class RedisUnBoundedQueueSpec extends RedisQueueSpec {
     RedisQueue.unboundedQueue(redis, queueKey, 10.millis)
 }
 
-// class RedisUnboundedStackSpec extends RedisQueueSpec {
-//   def redisQueue(redis: RedisConnection[IO], queueKey: String): Queue[IO,String] = 
-//     RedisQueue.unboundedStack(redis, queueKey, 10.millis)
-// }
+class RedisUnboundedStackSpec extends RedisQueueSpec {
+  def redisQueue(redis: RedisConnection[IO], queueKey: String): Queue[IO,String] = 
+    RedisQueue.unboundedStack(redis, queueKey, 10.millis)
+}
 
-// class RedisBoundedStackSpec extends RedisQueueSpec {
-//   def redisQueue(redis: RedisConnection[IO], queueKey: String): Queue[IO,String] = 
-//     RedisQueue.boundedStack(redis, queueKey, 10, 10.millis)
-// }
+class RedisBoundedStackSpec extends RedisQueueSpec {
+  def redisQueue(redis: RedisConnection[IO], queueKey: String): Queue[IO,String] = 
+    RedisQueue.boundedStack(redis, queueKey, 10, 10.millis)
+}
