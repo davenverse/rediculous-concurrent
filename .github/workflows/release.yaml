@@ -47,4 +47,4 @@ jobs:
         run: |
           sbt ++$SCALA_VERSION site/publishMicrosite
         env:
-          GITHUB_TOKEN: ${{ secrets.SITE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
