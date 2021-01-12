@@ -13,7 +13,6 @@ import java.util.UUID
 import cats.data.NonEmptyList
 import io.chrisdavenport.rediculous.RedisTransaction.TxResult.Success
 import io.chrisdavenport.rediculous.RedisTransaction.TxResult.Aborted
-import shapeless.ops.nat.Min
 
 trait MiniSemaphore[F[_]]{
   def acquire: F[Unit]
