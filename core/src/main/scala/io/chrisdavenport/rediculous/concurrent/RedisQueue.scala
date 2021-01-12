@@ -92,9 +92,6 @@ object RedisQueue {
           if (l.exists(_.isDefined)) Some(Chunk.seq(l.flatten))
           else None
         }
-
-    override def dequeue: fs2.Stream[F, String] = 
-      dequeueChunk(512)
     
     def dequeueChunk(maxSize: Int): fs2.Stream[F,String] =
       fs2.Stream.repeatEval(dequeueChunk1(maxSize))
@@ -155,9 +152,6 @@ object RedisQueue {
           else None
         }
     
-    override def dequeue: fs2.Stream[F, String] =
-      dequeueChunk(512)
-
     def dequeueChunk(maxSize: Int): fs2.Stream[F,String] =
       fs2.Stream.repeatEval(dequeueChunk1(maxSize))
         .flatMap{
