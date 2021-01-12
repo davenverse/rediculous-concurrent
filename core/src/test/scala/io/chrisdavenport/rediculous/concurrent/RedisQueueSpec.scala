@@ -37,7 +37,7 @@ trait RedisQueueSpec extends RedisSpec {
       .dequeue
       .take(expected.toList.size)
       .concurrently(expected.covary[IO].through(queue.enqueue))
-      .compile.toList.map(assertEquals(_, expected.toList))
+      .compile.toList.map(x => assertEquals(x.toSet, expected.toList.toSet))
   }
 
   def redisQueue(redis: RedisConnection[IO], queueKey: String): Queue[IO, String]
