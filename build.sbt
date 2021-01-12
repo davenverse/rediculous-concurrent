@@ -101,37 +101,24 @@ lazy val commonSettings = Seq(
 
   libraryDependencies ++= Seq(
     "org.typelevel"               %% "cats-core"                  % catsV,
-    "org.typelevel"               %% "alleycats-core"             % catsV,
-
     "org.typelevel"               %% "cats-effect"                % catsEffectV,
-
-    "com.chuusai"                 %% "shapeless"                  % shapelessV,
 
     "co.fs2"                      %% "fs2-core"                   % fs2V,
     "co.fs2"                      %% "fs2-io"                     % fs2V,
 
-    "org.http4s"                  %% "http4s-dsl"                 % http4sV,
-    "org.http4s"                  %% "http4s-blaze-server"        % http4sV,
-    "org.http4s"                  %% "http4s-blaze-client"        % http4sV,
-    "org.http4s"                  %% "http4s-circe"               % http4sV,
-
     "io.circe"                    %% "circe-core"                 % circeV,
-    "io.circe"                    %% "circe-generic"              % circeV,
     "io.circe"                    %% "circe-parser"               % circeV,
 
-    "io.chrisdavenport"           %% "rediculous"                 % "0.0.8",
+    "io.chrisdavenport"           %% "rediculous"                 % "0.0.11",
     "io.chrisdavenport"           %% "mapref"                     % "0.1.1",
     "io.chrisdavenport"           %% "circuit"                    % "0.4.3",
     "io.chrisdavenport"           %% "mules"                      % "0.4.0",
 
-    "org.tpolecat"                %% "doobie-core"                % doobieV,
-    "org.tpolecat"                %% "doobie-h2"                  % doobieV,
-    "org.tpolecat"                %% "doobie-hikari"              % doobieV,
-    "org.tpolecat"                %% "doobie-postgres"            % doobieV,
-
-    "io.chrisdavenport"           %% "log4cats-core"              % log4catsV,
-    "io.chrisdavenport"           %% "log4cats-slf4j"             % log4catsV,
-    "io.chrisdavenport"           %% "log4cats-testing"           % log4catsV     % Test,
+    // Deps we may use in the future, but don't need presently.
+    // "io.circe"                    %% "circe-generic"              % circeV,
+    // "io.chrisdavenport"           %% "log4cats-core"              % log4catsV,
+    // "io.chrisdavenport"           %% "log4cats-slf4j"             % log4catsV,
+    // "io.chrisdavenport"           %% "log4cats-testing"           % log4catsV     % Test,
     "org.scalameta"               %% "munit"                      % mUnitV        % Test,
     "org.typelevel"               %% "munit-cats-effect-2"        % "0.12.0"      % Test,
     "com.dimafeng"                %% "testcontainers-scala"       % "0.38.8"      % Test

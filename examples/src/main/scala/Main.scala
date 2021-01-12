@@ -41,11 +41,11 @@ object Main extends IOApp {
             (end - begin).putStrLn.map(_ => out)
         }
 
-      val barrier = RedisCyclicBarrier.create[IO](connection, "test-cyclic-barrier", 2, 1.seconds, 1.seconds, 10.millis, 20.minutes, RedisCommands.SetOpts(None, Some(24.hours.toMillis), None, false))
+      val barrier = RedisCyclicBarrier.create[IO](connection, "test-cyclic-barrier", 5, 1.seconds, 1.seconds, 10.millis, 20.minutes, RedisCommands.SetOpts(None, Some(24.hours.toMillis), None, false))
 
       Stream.repeatEval(
         time(
-          (barrier.await, Timer[IO].sleep(500.millis) >> barrier.await).parTupled
+          (barrier.await, IO.race(barrier.await, Timer[IO].sleep(500.millis) >> barrier.await), barrier.await, Timer[IO].sleep(1.second) >> barrier.await).parTupled
         )
       ).take(10).compile.drain
 

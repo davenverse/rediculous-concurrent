@@ -29,9 +29,10 @@ object RedisLock {
         RedisCommands.SetOpts(None, Some(lockTimeout.toMillis), Some(Condition.Nx), false)
       ).run(connection)
       out = status match {
-        case Status.Ok => Some(identifier)
-        case Status.Pong => None
-        case Status.Status(getStatus) => None
+        case Some(Status.Ok) => Some(identifier)
+        case Some(Status.Pong) => None
+        case Some(Status.Status(getStatus)) => None
+        case None => None
       }
     } yield out
     Concurrent.timeout(create, acquireTimeout)
@@ -72,9 +73,10 @@ object RedisLock {
         RedisCommands.SetOpts(None, Some(lockTimeout.toMillis), Some(Condition.Nx), false)
       ).run(connection)
       out = status match {
-        case Status.Ok => Some(identifier.toString())
-        case Status.Pong => None
-        case Status.Status(getStatus) => None
+        case None => None // Empty Bulk String, Failed to Create Lock
+        case Some(Status.Ok) => Some(identifier.toString())
+        case Some(Status.Pong) => None
+        case Some(Status.Status(getStatus)) => None
       }
     } yield out
 
