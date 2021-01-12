@@ -6,7 +6,7 @@ val http4sV = "0.21.15"
 val circeV = "0.13.0"
 val doobieV = "0.9.4"
 val log4catsV = "1.1.1"
-val specs2V = "4.10.5"
+val mUnitV = "0.7.20"
 
 val kindProjectorV = "0.11.2"
 val betterMonadicForV = "0.3.1"
@@ -83,6 +83,8 @@ lazy val site = project.in(file("site"))
 lazy val commonSettings = Seq(
   scalaVersion := "2.13.3",
   crossScalaVersions := Seq(scalaVersion.value, "2.12.12"),
+  testFrameworks += new TestFramework("munit.Framework"),
+  Test / parallelExecution := true,
 
   addCompilerPlugin("org.typelevel" %% "kind-projector" % kindProjectorV cross CrossVersion.full),
   addCompilerPlugin("com.olegpy"    %% "better-monadic-for" % betterMonadicForV),
@@ -126,14 +128,13 @@ lazy val commonSettings = Seq(
     "org.tpolecat"                %% "doobie-h2"                  % doobieV,
     "org.tpolecat"                %% "doobie-hikari"              % doobieV,
     "org.tpolecat"                %% "doobie-postgres"            % doobieV,
-    "org.tpolecat"                %% "doobie-specs2"              % doobieV       % Test,
 
     "io.chrisdavenport"           %% "log4cats-core"              % log4catsV,
     "io.chrisdavenport"           %% "log4cats-slf4j"             % log4catsV,
     "io.chrisdavenport"           %% "log4cats-testing"           % log4catsV     % Test,
-
-    "org.specs2"                  %% "specs2-core"                % specs2V       % Test,
-    "org.specs2"                  %% "specs2-scalacheck"          % specs2V       % Test
+    "org.scalameta"               %% "munit"                      % mUnitV        % Test,
+    "org.typelevel"               %% "munit-cats-effect-2"        % "0.12.0"      % Test,
+    "com.dimafeng"                %% "testcontainers-scala"       % "0.38.8"      % Test
   )
 )
 
