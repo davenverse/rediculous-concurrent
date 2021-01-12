@@ -82,7 +82,7 @@ lazy val site = project.in(file("site"))
 // General Settings
 lazy val commonSettings = Seq(
   scalaVersion := "2.13.3",
-  crossScalaVersions := Seq(scalaVersion.value, "2.12.12"),
+  crossScalaVersions := Seq(scalaVersion.value),
   testFrameworks += new TestFramework("munit.Framework"),
   Test / parallelExecution := true,
 
