@@ -1,4 +1,4 @@
-name: Release
+name: Site
 on:
   push:
     branches:
@@ -27,12 +27,16 @@ jobs:
         with:
           path: ~/.sbt
           key: sbt-${{ hashFiles('**/build.sbt') }}
-      - uses: olafurpg/setup-gpg@v3
-      - name: Publish
-        run: sbt ci-release
+            - name: Set up Ruby 2.6
+        uses: actions/setup-ruby@v1
+        with:
+          ruby-version: 2.6
+      - name: Install Jekyll
+        run: |
+          gem install bundler
+          bundle install --gemfile=site/Gemfile
+      - name: Publish microsite
+        run: |
+          sbt ++$SCALA_VERSION site/publishMicrosite
         env:
-          PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
-          PGP_SECRET: ${{ secrets.PGP_SECRET }}
-          SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
-          SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
-          CI_SNAPSHOT_RELEASE: "+publishSigned"    
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
