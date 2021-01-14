@@ -90,7 +90,7 @@ object RedisQueue {
           }
         }
 
-    override def dequeue: fs2.Stream[F,String] = dequeueChunk(512)
+    override def dequeue: fs2.Stream[F,String] = fs2.Stream.repeatEval(dequeue1)
     
     def tryDequeueChunk1(maxSize: Int): F[Option[cats.Id[Chunk[String]]]] = 
       RedisCommands.lpop[RedisPipeline](queueKey).replicateA(maxSize)
@@ -108,7 +108,7 @@ object RedisQueue {
           case chunk => fs2.Stream.chunk(chunk)
         }
     
-    def dequeueBatch: fs2.Pipe[F,Int,String] = _.evalMap{i => dequeueChunk1(1)}.flatMap(fs2.Stream.chunk)
+    def dequeueBatch: fs2.Pipe[F,Int,String] = _.evalMap{i => dequeueChunk1(i)}.flatMap(fs2.Stream.chunk)
   }
 
   private class BoundedQueue[F[_]: Concurrent: Timer](
@@ -130,7 +130,7 @@ object RedisQueue {
           pushEntry(a).as(true)
       }
 
-    override def dequeue: fs2.Stream[F,String] = dequeueChunk(512)
+    override def dequeue: fs2.Stream[F,String] = fs2.Stream.repeatEval(dequeue1)
     
     def dequeue1: F[String] = 
       tryDequeue1.flatMap{
