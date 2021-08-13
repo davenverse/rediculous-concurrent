@@ -2,12 +2,11 @@ package io.chrisdavenport.rediculous.concurrent
 
 import cats.syntax.all._
 import cats.effect._
-import cats.effect.concurrent._
 import io.chrisdavenport.rediculous._
 import scala.concurrent.duration._
 import io.chrisdavenport.mapref.MapRef
 
-class RedisMapRef[F[_]: Concurrent: Timer] (
+class RedisMapRef[F[_]: Async] (
   redisConnection: RedisConnection[F], 
   acquireTimeout: FiniteDuration,
   lockTimeout: FiniteDuration,
@@ -42,7 +41,7 @@ class RedisMapRef[F[_]: Concurrent: Timer] (
 
 object RedisMapRef {
 
-  def impl[F[_]: Concurrent: Timer](
+  def impl[F[_]: Async](
     redisConnection: RedisConnection[F], acquireTimeout: FiniteDuration, lockTimeout: FiniteDuration,
     setOpts: RedisCommands.SetOpts
   ): RedisMapRef[F] = 

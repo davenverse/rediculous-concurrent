@@ -3,8 +3,8 @@ package io.chrisdavenport.rediculous.concurrent
 import cats.effect._
 import com.dimafeng.testcontainers.GenericContainer
 import io.chrisdavenport.rediculous.RedisConnection
-import cats.effect.Blocker
-import fs2.io.tcp.SocketGroup
+import fs2.io.net._
+import com.comcast.ip4s._
 
 object resources {
   def redisContainer[F[_]: Sync]: Resource[F, GenericContainer] = 
@@ -16,11 +16,9 @@ object resources {
       }
     )(r => Sync[F].delay(r.container.stop()) )
 
-  def redisConnection(implicit CS: ContextShift[IO], T: Timer[IO]): Resource[IO, RedisConnection[IO]] = for {
-    blocker <- Blocker[IO]
-    sg <- SocketGroup[IO](blocker)
+  def redisConnection: Resource[IO, RedisConnection[IO]] = for {
     container <- redisContainer[IO].map(_.container)
-    connection <- RedisConnection.queued[IO](sg, container.getContainerIpAddress(), container.getMappedPort(6379), maxQueued = 10000, workers = 4)
+    connection <- RedisConnection.queued[IO](Network[IO], Host.fromString(container.getContainerIpAddress()).get, Port.fromInt(container.getMappedPort(6379)).get, maxQueued = 10000, workers = 4)
   } yield connection
   
 

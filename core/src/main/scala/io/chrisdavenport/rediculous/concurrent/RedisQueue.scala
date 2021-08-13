@@ -1,7 +1,7 @@
 package io.chrisdavenport.rediculous.concurrent
 
 import io.chrisdavenport.rediculous.RedisConnection
-import fs2.concurrent.Queue
+import cats.effect.std.Queue
 
 import cats._
 import cats.syntax.all._
@@ -14,7 +14,7 @@ import io.chrisdavenport.rediculous.RedisPipeline
 object RedisQueue {
 
   /** rpush/lpop no size bound */
-  def unboundedQueue[F[_]: Concurrent: Timer](
+  def unboundedQueue[F[_]: Async](
     redisConnection: RedisConnection[F],
     queueKey: String,
     pollingInterval: FiniteDuration
@@ -23,7 +23,7 @@ object RedisQueue {
   )
 
   /** lpush/lpop no size bound */
-  def unboundedStack[F[_]: Concurrent: Timer](
+  def unboundedStack[F[_]: Async](
     redisConnection: RedisConnection[F],
     queueKey: String,
     pollingInterval: FiniteDuration
@@ -32,7 +32,7 @@ object RedisQueue {
   )
 
   /** rpush/lpop size bound, polls on insert when full, can overfill */
-  def boundedQueue[F[_]: Concurrent: Timer](
+  def boundedQueue[F[_]: Async](
     redisConnection: RedisConnection[F],
     queueKey: String,
     maxSize: Long, 
@@ -42,7 +42,7 @@ object RedisQueue {
   )
 
     /** lpush/lpop size bound, polls on insert when full, can overfill */
-  def boundedStack[F[_]: Concurrent: Timer](
+  def boundedStack[F[_]: Async](
     redisConnection: RedisConnection[F],
     queueKey: String,
     maxSize: Long, 
@@ -51,132 +51,57 @@ object RedisQueue {
     {s => RedisCommands.lpush(queueKey, List(s)).run(redisConnection)}
   )
 
-  private class RedisQueueUnboundedImpl[F[_]: Concurrent: Timer](
+  private class RedisQueueUnboundedImpl[F[_]: Async](
     redisConnection: RedisConnection[F],
     queueKey: String,
     pollingInterval: FiniteDuration,
     pushEntry: String => F[Long]
   ) extends Queue[F, String] {
-    def enqueue1(a: String): F[Unit] = 
-      pushEntry(a).void
-    
-    def offer1(a: String): F[Boolean] = 
-      enqueue1(a).as(true)
-    
-    def dequeue1: F[String] = 
-      tryDequeue1.flatMap{
-        case Some(s) => s.pure[F]
-        case _ => Timer[F].sleep(pollingInterval) >> dequeue1
-      }
-    
-    def tryDequeue1: F[Option[String]] = 
-      RedisCommands.lpop(queueKey).run(redisConnection)
-    
-    /**
-      * Returns a nonEmpty chunk whose size is the result of 
-      * maxSize calls of lpop run in a pipelined request. Since each
-      * size is a physical call to redis it is highly recommended this number stay
-      * far lower than the domain of Int.
-      */
-    def dequeueChunk1(maxSize: Int): F[cats.Id[Chunk[String]]] = 
-      RedisCommands.lpop[RedisPipeline](queueKey).replicateA(maxSize)
-        .pipeline
-        .run(redisConnection)
-        .flatMap{l => 
-          val x = l.flatten
-          x match {
-            case Nil => Timer[F].sleep(pollingInterval) >> dequeueChunk1(maxSize)
-            case otherwise => Chunk.seq(otherwise).pure[F]
-          }
-        }
 
-    override def dequeue: fs2.Stream[F,String] = fs2.Stream.repeatEval(dequeue1)
-    
-    def tryDequeueChunk1(maxSize: Int): F[Option[cats.Id[Chunk[String]]]] = 
-      RedisCommands.lpop[RedisPipeline](queueKey).replicateA(maxSize)
-        .pipeline
-        .run(redisConnection)
-        .map{l => 
-          if (l.exists(_.isDefined)) Some(Chunk.seq(l.flatten))
-          else None
-        }
-    
-    def dequeueChunk(maxSize: Int): fs2.Stream[F,String] =
-      fs2.Stream.repeatEval(dequeueChunk1(maxSize))
-        .flatMap{
-          case chunk if chunk.isEmpty => fs2.Stream.eval_(Timer[F].sleep(pollingInterval)) ++ dequeueChunk(maxSize)
-          case chunk => fs2.Stream.chunk(chunk)
-        }
-    
-    def dequeueBatch: fs2.Pipe[F,Int,String] = _.evalMap{i => dequeueChunk1(i)}.flatMap(fs2.Stream.chunk)
+    def offer(a: String): F[Unit] = pushEntry(a).void
+    def tryOffer(a: String): F[Boolean] = offer(a).as(true)
+  
+    // Members declared in cats.effect.std.QueueSource
+    def size: F[Int] = RedisCommands.llen(queueKey).run(redisConnection).map(_.toInt)
+    def take: F[String] = tryTake.flatMap{
+      case Some(s) => s.pure[F]
+      case _ => Temporal[F].sleep(pollingInterval) >> take
+    }
+      
+    def tryTake: F[Option[String]] = RedisCommands.lpop(queueKey).run(redisConnection)
+
+  
   }
 
-  private class BoundedQueue[F[_]: Concurrent: Timer](
+  private class BoundedQueue[F[_]: Async](
     redisConnection: RedisConnection[F],
     queueKey: String,
     maxSize: Long,
     pollingInterval: FiniteDuration,
     pushEntry: String => F[Long]
   ) extends Queue[F, String]{
-    def enqueue1(a: String): F[Unit] = offer1(a).ifM(
+    def offer(a: String): F[Unit] = tryOffer(a).ifM(
       Applicative[F].unit,
-      Timer[F].sleep(pollingInterval) >> enqueue1(a)
+      Temporal[F].sleep(pollingInterval) >> offer(a)
     )
     
-    def offer1(a: String): F[Boolean] = 
+    def tryOffer(a: String): F[Boolean] = 
       RedisCommands.llen(queueKey).run(redisConnection).flatMap{
         case exists if exists >= maxSize => false.pure[F]
         case otherwise => 
           pushEntry(a).as(true)
       }
 
-    override def dequeue: fs2.Stream[F,String] = fs2.Stream.repeatEval(dequeue1)
+    def size: F[Int] = RedisCommands.llen(queueKey).run(redisConnection).map(_.toInt)
     
-    def dequeue1: F[String] = 
-      tryDequeue1.flatMap{
+    def take: F[String] = 
+      tryTake.flatMap{
         case Some(s) => s.pure[F]
-        case _ => Timer[F].sleep(pollingInterval) >> dequeue1
+        case _ => Temporal[F].sleep(pollingInterval) >> take
       }
     
-    def tryDequeue1: F[Option[String]] = 
-      RedisCommands.lpop(queueKey).run(redisConnection)
-    
-    /**
-      * Returns a nonEmpty chunk whose size is the result of 
-      * maxSize calls of lpop run in a pipelined request. Since each
-      * size is a physical call to redis it is highly recommended this number stay
-      * far lower than the domain of Int.
-      */
-    def dequeueChunk1(maxSize: Int): F[cats.Id[Chunk[String]]] = 
-      RedisCommands.lpop[RedisPipeline](queueKey).replicateA(maxSize)
-        .pipeline
-        .run(redisConnection)
-        .flatMap{l => 
-          val x = l.flatten
-          x match {
-            case Nil => Timer[F].sleep(pollingInterval) >> dequeueChunk1(maxSize)
-            case otherwise => Chunk.seq(otherwise).pure[F]
-          }
-        }
-    
-    def tryDequeueChunk1(maxSize: Int): F[Option[cats.Id[Chunk[String]]]] = 
-      RedisCommands.lpop[RedisPipeline](queueKey).replicateA(maxSize)
-        .pipeline
-        .run(redisConnection)
-        .map{l => 
-          if (l.exists(_.isDefined)) Some(Chunk.seq(l.flatten))
-          else None
-        }
-    
-    def dequeueChunk(maxSize: Int): fs2.Stream[F,String] =
-      fs2.Stream.repeatEval(dequeueChunk1(maxSize))
-        .flatMap{
-          case chunk if chunk.isEmpty => fs2.Stream.eval_(Timer[F].sleep(pollingInterval)) ++ dequeueChunk(maxSize)
-          case chunk => fs2.Stream.chunk(chunk)
-        }
-    
-    def dequeueBatch: fs2.Pipe[F,Int,String] = _.evalMap{i => dequeueChunk1(1)}.flatMap(fs2.Stream.chunk)
-    
+    def tryTake: F[Option[String]] = 
+      RedisCommands.lpop(queueKey).run(redisConnection)  
   }
 
 

@@ -3,7 +3,6 @@ package io.chrisdavenport.rediculous.concurrent
 import cats._
 import cats.syntax.all._
 import cats.effect._
-import cats.effect.concurrent._
 import io.chrisdavenport.rediculous._
 import io.circe._
 import io.circe.syntax._
@@ -37,7 +36,7 @@ abstract class CountDownLatch[F[_]] { self =>
 
 object RedisCountdownLatch {
 
-  def createOrAccess[F[_]: Concurrent: Timer](
+  def createOrAccess[F[_]: Async](
     redisConnection: RedisConnection[F],
     key: String,
     latches: Int,
@@ -56,7 +55,7 @@ object RedisCountdownLatch {
       .as(new ConcurrentCountDownLatch[F](ref, pollingInterval, redisConnection, key, deferredLifetime))
   }
 
-  def accessAtKey[F[_]: Concurrent: Timer](
+  def accessAtKey[F[_]: Async](
     redisConnection: RedisConnection[F],
     key: String,
     acquireTimeout: FiniteDuration,
@@ -76,7 +75,7 @@ object RedisCountdownLatch {
     )
   }
 
-  private class ConcurrentCountDownLatch[F[_]: Concurrent: Timer](
+  private class ConcurrentCountDownLatch[F[_]: Async](
     state: Ref[F, State],
     pollingInterval: FiniteDuration,
     redisConnection: RedisConnection[F],
@@ -86,7 +85,7 @@ object RedisCountdownLatch {
       extends CountDownLatch[F] {
 
     override def release: F[Unit] =
-      Concurrent[F].uncancelable {
+      Concurrent[F].uncancelable {_ => 
         state.modify {
           case Awaiting(n, signal) =>
             if (n > 1) (Awaiting(n - 1, signal), Applicative[F].unit) else (Done(), RedisDeferred.fromKey(redisConnection, signal, pollingInterval, lifetime).complete(keyLocation).void)
@@ -102,7 +101,7 @@ object RedisCountdownLatch {
 
   }
 
-  private class PossiblyAbsentCountdownLatch[F[_]: Concurrent: Timer](
+  private class PossiblyAbsentCountdownLatch[F[_]: Async](
     state: Ref[F, Option[State]], 
     pollingInterval: FiniteDuration,
     redisConnection: RedisConnection[F],
@@ -110,7 +109,7 @@ object RedisCountdownLatch {
     lifetime: FiniteDuration
   ) extends CountDownLatch[F] {
     override def release: F[Unit] =
-      Concurrent[F].uncancelable {
+      Concurrent[F].uncancelable {_ => 
         state.modify {
           case Some(Awaiting(n, signal)) =>
             if (n > 1) (Awaiting(n - 1, signal).some, false.pure[F]) else (Done().some, RedisDeferred.fromKey(redisConnection, signal, pollingInterval, lifetime).complete(keyLocation).void.as(false))
@@ -118,7 +117,7 @@ object RedisCountdownLatch {
           case None => (None, true.pure[F])
         }.flatten
       }.ifM(
-        Timer[F].sleep(pollingInterval) >> release, 
+        Temporal[F].sleep(pollingInterval) >> release, 
         Applicative[F].unit
       )
 
@@ -126,11 +125,11 @@ object RedisCountdownLatch {
       state.get.flatMap {
         case Some(Awaiting(_, signal)) => RedisDeferred.fromKey(redisConnection, signal, pollingInterval, lifetime).get.void
         case Some(Done()) => Applicative[F].unit
-        case None => Timer[F].sleep(pollingInterval) >> await
+        case None => Temporal[F].sleep(pollingInterval) >> await
       }
   }
 
-  def stateAtLocation[F[_]: Concurrent: Timer](
+  def stateAtLocation[F[_]: Async](
     redisConnection: RedisConnection[F],
     key: String,
     acquireTimeout: FiniteDuration,
@@ -151,31 +150,15 @@ object RedisCountdownLatch {
     default: A 
   ): Deferred[F, Unit] = new TranslatedDeferred[F, A](tryAble, default)
 
-  def liftTryableDeferred[F[_]: Functor, A](
-    tryAble: TryableDeferred[F, A],
-    default: A 
-  ): TryableDeferred[F, Unit] = new TranslatedTryDeferred[F, A](tryAble, default)
-
-  class TranslatedTryDeferred[F[_]: Functor, A](
-    val tryAble: TryableDeferred[F, A],
-    val default: A
-  ) extends TryableDeferred[F, Unit]{
-    def complete(a: Unit): F[Unit] = 
-      tryAble.complete(default)
-    def get: F[Unit] = 
-      tryAble.get.void
-    def tryGet: F[Option[Unit]] = 
-      tryAble.tryGet.map(_.void)
-  }
-
   class TranslatedDeferred[F[_]: Functor, A](
     val tryAble: Deferred[F, A],
     val default: A
   ) extends Deferred[F, Unit]{
-    def complete(a: Unit): F[Unit] = 
+    def complete(a: Unit): F[Boolean] = 
       tryAble.complete(default)
     def get: F[Unit] = 
       tryAble.get.void
+    def tryGet: F[Option[Unit]] = tryAble.tryGet.map(_.void)
   }
 
 

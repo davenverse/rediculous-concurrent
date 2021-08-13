@@ -3,7 +3,6 @@ package io.chrisdavenport.rediculous.concurrent
 import cats._
 import cats.syntax.all._
 import cats.effect._
-import cats.effect.concurrent._
 import cats.effect.syntax.all._
 import io.circe._
 import io.circe.syntax._
@@ -36,7 +35,7 @@ trait CyclicBarrier[F[_]]{ self =>
 
 object RedisCyclicBarrier {
 
-  def create[F[_]: Concurrent: Timer](
+  def create[F[_]: Async](
     redisConnection: RedisConnection[F],
     key: String,
     capacity: Int,
@@ -52,7 +51,7 @@ object RedisCyclicBarrier {
   case class State(awaiting: Int, epoch: Long, currentDeferredLocation: String)
 
 
-  private class RedisCyclicBarrier[F[_]: Concurrent : Timer](
+  private class RedisCyclicBarrier[F[_]: Async](
     redisConnection: RedisConnection[F],
     key: String,
     capacity: Int,
@@ -91,7 +90,7 @@ object RedisCyclicBarrier {
             }
 
             Some(newState) -> deferredAtLocation(location).get.void.guaranteeCase{
-              case ExitCase.Canceled => cleanup
+              case Outcome.Canceled() => cleanup
               case _ => Applicative[F].unit
             }
           }

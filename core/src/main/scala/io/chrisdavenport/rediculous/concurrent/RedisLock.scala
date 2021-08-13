@@ -16,7 +16,7 @@ import java.util.UUID
 
 object RedisLock {
 
-  def tryAcquireLock[F[_]: Concurrent: Timer](
+  def tryAcquireLock[F[_]: Async](
     connection: RedisConnection[F],
     lockname: String,
     acquireTimeout: FiniteDuration,
@@ -35,10 +35,10 @@ object RedisLock {
         case None => None
       }
     } yield out
-    Concurrent.timeout(create, acquireTimeout)
+    Concurrent[F].timeout(create, acquireTimeout)
   }
 
-  def shutdownLock[F[_]: Concurrent](
+  def shutdownLock[F[_]: Async](
     connection: RedisConnection[F],
     lockname: String,
     identifier: UUID
@@ -60,7 +60,7 @@ object RedisLock {
         }
   }
 
-  def tryAcquireLockWithTimeout[F[_]: Concurrent: Timer](
+  def tryAcquireLockWithTimeout[F[_]: Async](
     connection: RedisConnection[F],
     lockname: String,
     acquireTimeout: FiniteDuration,
@@ -99,11 +99,11 @@ object RedisLock {
       case None => Applicative[F].unit
     }
 
-    val createWithTimeout = Concurrent.timeout(create, acquireTimeout)
+    val createWithTimeout = Concurrent[F].timeout(create, acquireTimeout)
     Resource.make(createWithTimeout)(shutdown).map(_.isDefined)
   }
 
-  def acquireLockWithTimeout[F[_]: Concurrent: Timer](
+  def acquireLockWithTimeout[F[_]: Async](
     connection: RedisConnection[F],
     lockname: String,
     acquireTimeout: FiniteDuration,

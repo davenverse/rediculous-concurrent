@@ -3,7 +3,7 @@ package io.chrisdavenport.rediculous.concurrent
 import cats._
 import cats.syntax.all._
 import cats.effect._
-import cats.effect.concurrent._
+import cats.effect.std.Semaphore
 import io.chrisdavenport.rediculous._
 import io.chrisdavenport.rediculous.{RedisCommands, RedisConnection}
 import io.chrisdavenport.rediculous.RedisTransaction.TxResult
@@ -18,7 +18,7 @@ trait MiniSemaphore[F[_]]{
   def acquire: F[Unit]
   def tryAcquire: F[Boolean]
   def release: F[Unit]
-  def withPermit[A](f: F[A]): F[A]
+  def permit: Resource[F, Unit]
 }
 
 object MiniSemaphore {
@@ -30,7 +30,7 @@ object MiniSemaphore {
     
     def release: F[Unit] = semaphore.release
     
-    def withPermit[A](f: F[A]): F[A] = semaphore.withPermit(f)
+    def permit: Resource[F, Unit] = semaphore.permit
   }
 
   def fromRedisSemaphore[F[_]: Sync](r: RedisSemaphore.RedisBackedSemaphore[F]): MiniSemaphore[F] = new MiniSemaphore[F]{
@@ -40,14 +40,14 @@ object MiniSemaphore {
     
     def release: F[Unit] = r.release
     
-    def withPermit[A](f: F[A]): F[A] = r.withPermit.use(_ => f)
+    def permit: Resource[F, Unit] = r.withPermit
   }
 
 }
 
 object RedisSemaphore {
 
-  def build[F[_]: Concurrent: Timer](
+  def build[F[_]: Async](
     redisConnection: RedisConnection[F],
     semname: String, // The Name of the semaphore, also operates as the base of the redis key
     limit: Long, // Total Number of Permits Allowed
@@ -59,7 +59,7 @@ object RedisSemaphore {
     new RedisBackedSemaphore[F](redisConnection, semname, limit, timeout, poll, lockAcquireTimeout, lockTotalTimeout, _)
   )
 
-  class RedisBackedSemaphore[F[_]: Concurrent: Timer](
+  class RedisBackedSemaphore[F[_]: Async](
     redisConnection: RedisConnection[F],
     semname: String,
     limit: Long,
@@ -71,10 +71,10 @@ object RedisSemaphore {
   ){
 
     def acquire: F[Unit] = 
-      Concurrent.timeout(
+      Concurrent[F].timeout(
         tryAcquire.flatMap{
         case true => Applicative[F].unit
-        case false => Timer[F].sleep(poll) >> acquire
+        case false => Temporal[F].sleep(poll) >> acquire
       }, timeout)
 
     def tryAcquire: F[Boolean] = 
@@ -104,12 +104,12 @@ object RedisSemaphore {
     def withPermit: Resource[F, Unit] = Resource.make(acquire)(_ => release)
   }
 
-  private def tryAcquireSemaphore[F[_]: Concurrent](
+  private def tryAcquireSemaphore[F[_]:Async](
     redisConnection: RedisConnection[F],
     semname: String,
     limit: Long,
     timeout: FiniteDuration
-  ): F[Option[UUID]] = Concurrent[F].suspend{
+  ): F[Option[UUID]] = Async[F].delay{
       val now = System.currentTimeMillis().millis
       val random = UUID.randomUUID()
       val identifier = random.toString()
@@ -155,9 +155,9 @@ object RedisSemaphore {
       }
 
       getSemaphore
-  }
+  }.flatten
 
-  private def releaseSemaphore[F[_]: Concurrent](
+  private def releaseSemaphore[F[_]: Async](
     redisConnection: RedisConnection[F],
     semname: String,
     identifier: java.util.UUID

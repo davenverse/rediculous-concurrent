@@ -45,13 +45,13 @@ object RedisCache {
     
   }
 
-  def instance[F[_]: Concurrent](
+  def instance[F[_]: Async](
     connection: RedisConnection[F],
     namespace: String,
     setOpts: RedisCommands.SetOpts
   ): Cache[F, String, String] = new RedisCacheBase[F](connection, namespace, setOpts)
 
-  private class RedisCacheBase[F[_]: Concurrent](
+  private class RedisCacheBase[F[_]: Async](
     connection: RedisConnection[F],
     namespace: String,
     setOpts: RedisCommands.SetOpts

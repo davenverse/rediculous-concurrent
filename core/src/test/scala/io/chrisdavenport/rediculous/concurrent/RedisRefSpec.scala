@@ -3,7 +3,6 @@ package io.chrisdavenport.rediculous.concurrent
 import scala.concurrent.duration._
 
 import cats.effect._
-import cats.effect.concurrent._
 import cats.syntax.all._
 import io.chrisdavenport.rediculous.RedisCommands
 import io.chrisdavenport.rediculous.RedisConnection

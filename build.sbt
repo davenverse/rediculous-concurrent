@@ -1,11 +1,8 @@
-val catsV = "2.3.0"
-val catsEffectV = "2.3.1"
-val shapelessV = "2.3.3"
-val fs2V = "2.4.6"
-val http4sV = "0.21.15"
-val circeV = "0.13.0"
-val doobieV = "0.9.4"
-val log4catsV = "1.1.1"
+val catsV = "2.6.1"
+val catsEffectV = "3.2.2"
+val fs2V = "3.1.0"
+val circeV = "0.14.1"
+
 val mUnitV = "0.7.20"
 
 ThisBuild / testFrameworks += new TestFramework("munit.Framework")
@@ -31,18 +28,17 @@ lazy val core = project.in(file("core"))
       "io.circe"                    %% "circe-core"                 % circeV,
       "io.circe"                    %% "circe-parser"               % circeV,
 
-      "io.chrisdavenport"           %% "rediculous"                 % "0.0.11",
-      "io.chrisdavenport"           %% "mapref"                     % "0.1.1",
-      "io.chrisdavenport"           %% "circuit"                    % "0.4.3",
-      "io.chrisdavenport"           %% "mules"                      % "0.4.0",
+      "io.chrisdavenport"           %% "rediculous"                 % "0.1.0",
+      "io.chrisdavenport"           %% "mapref"                     % "0.2.0-M2",
+      "io.chrisdavenport"           %% "circuit"                    % "0.5.0-M1",
+      "io.chrisdavenport"           %% "mules"                      % "0.5.0-M1",
 
       // Deps we may use in the future, but don't need presently.
       // "io.circe"                    %% "circe-generic"              % circeV,
       // "io.chrisdavenport"           %% "log4cats-core"              % log4catsV,
       // "io.chrisdavenport"           %% "log4cats-slf4j"             % log4catsV,
       // "io.chrisdavenport"           %% "log4cats-testing"           % log4catsV     % Test,
-      "org.scalameta"               %% "munit"                      % mUnitV        % Test,
-      "org.typelevel"               %% "munit-cats-effect-2"        % "0.12.0"      % Test,
+      "org.typelevel"               %% "munit-cats-effect-3"        % "1.0.5"      % Test,
       "com.dimafeng"                %% "testcontainers-scala"       % "0.38.8"      % Test
     )
   )
