@@ -3,11 +3,9 @@ val catsEffectV = "3.2.2"
 val fs2V = "3.1.0"
 val circeV = "0.14.1"
 
-val mUnitV = "0.7.20"
-
 ThisBuild / testFrameworks += new TestFramework("munit.Framework")
 
-ThisBuild / crossScalaVersions := Seq("2.13.4")
+ThisBuild / crossScalaVersions := Seq("2.12.14", "2.13.4")
 
 // Projects
 lazy val `rediculous-concurrent` = project.in(file("."))
@@ -40,7 +38,11 @@ lazy val core = project.in(file("core"))
       // "io.chrisdavenport"           %% "log4cats-testing"           % log4catsV     % Test,
       "org.typelevel"               %% "munit-cats-effect-3"        % "1.0.5"      % Test,
       "com.dimafeng"                %% "testcontainers-scala"       % "0.38.8"      % Test
-    )
+    ),
+    scalacOptions ++= {
+      if (scalaVersion.value.startsWith("2.12")) Seq("-Ypartial-unification")
+      else Seq()
+    }
   )
 
 lazy val examples = project.in(file("examples"))
