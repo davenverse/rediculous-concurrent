@@ -14,12 +14,11 @@ import io.circe.syntax._
 import scala.concurrent.duration._
 import java.util.concurrent.TimeUnit
 import cats.effect._
-import cats.effect.concurrent.Ref
 import io.chrisdavenport.rediculous.{RedisCommands,RedisConnection}
 
 object RedisCircuit {
 
-  def circuitAtLocation[F[_]: Concurrent: Timer](
+  def circuitAtLocation[F[_]: Async](
     redisConnection: RedisConnection[F],
     key: String,
     acquireTimeout: FiniteDuration = 5.seconds,
@@ -37,7 +36,7 @@ object RedisCircuit {
     CircuitBreaker.unsafe(ref, maxFailures, resetTimeout, exponentialBackoffFactor, maxResetTimeout, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit)
   }
 
-  def keyCircuit[F[_]: Concurrent: Timer](
+  def keyCircuit[F[_]: Async](
     redisConnection: RedisConnection[F],
     acquireTimeout: FiniteDuration = 5.seconds,
     lockDuration: FiniteDuration = 10.seconds,
@@ -47,7 +46,7 @@ object RedisCircuit {
     exponentialBackoffFactor: Double,
     maxResetTimeout: Duration
   ): String => CircuitBreaker[F] = {
-    val base: RedisMapRef[F] = RedisMapRef.impl[F](redisConnection, acquireTimeout, lockDuration, setOpts)(Concurrent[F], Timer[F])
+    val base: RedisMapRef[F] = RedisMapRef.impl[F](redisConnection, acquireTimeout, lockDuration, setOpts)
     val closed: String = (CircuitBreaker.Closed(0): State).asJson.noSpaces
 
     {key: String => 

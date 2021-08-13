@@ -4,7 +4,6 @@ import cats._
 import cats.syntax.all._
 import io.chrisdavenport.rediculous._
 import cats.effect._
-import cats.effect.concurrent._
 import io.chrisdavenport.rediculous.RedisTransaction.TxResult.{Aborted, Success, Error}
 import scala.concurrent.duration._
 import cats.data.NonEmptyList
@@ -19,13 +18,13 @@ object RedisRef {
     * which under heavy concurrency situations a lot of retries. However if there is very little
     * concurrency will behave smoother
     */
-  def atLocation[F[_]: Concurrent](redisConnection: RedisConnection[F], key: String, setIfAbsent: String): F[Ref[F, String]] = {
+  def atLocation[F[_]: Async](redisConnection: RedisConnection[F], key: String, setIfAbsent: String): F[Ref[F, String]] = {
     RedisCommands.setnx[Redis[F, *]](key, setIfAbsent)
       .run(redisConnection)
       .as(new RedisRef[F](redisConnection, key))
   }
 
-  class RedisRef[F[_]: Concurrent](
+  class RedisRef[F[_]: Async](
     redisConnection: RedisConnection[F],
     key: String,
   ) extends Ref[F, String]{
@@ -94,7 +93,7 @@ object RedisRef {
     * This uses a seperate lock specifically for each keyed resource. Guarding access to any behavior
     * involving writes requires first aquiring the lock.
     */
-  def lockedLocation[F[_]: Concurrent: Timer](
+  def lockedLocation[F[_]: Async](
     redisConnection: RedisConnection[F],
     key: String,
     default: String,
@@ -107,7 +106,7 @@ object RedisRef {
       .as(new LockedRedisRef[F](redisConnection, key, acquireTimeout, lockTimeout, setOpts))
       .map(new LiftedRefDefaultStorage(_, default))
   }
-  def lockedOptionRef[F[_]: Concurrent: Timer](
+  def lockedOptionRef[F[_]: Async](
     redisConnection: RedisConnection[F],
     key: String,
     acquireTimeout: FiniteDuration,
@@ -186,7 +185,7 @@ object RedisRef {
     
   }
 
-  class LockedRedisRef[F[_]: Concurrent: Timer](
+  class LockedRedisRef[F[_]: Async](
     redisConnection: RedisConnection[F],
     key: String,
     acquireTimeout: FiniteDuration,

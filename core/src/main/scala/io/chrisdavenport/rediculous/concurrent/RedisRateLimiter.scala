@@ -3,7 +3,7 @@ package io.chrisdavenport.rediculous.concurrent
 import cats.syntax.all._
 import io.chrisdavenport.rediculous.{RedisConnection, RedisTransaction}
 import io.chrisdavenport.rediculous.RedisCommands.{zremrangebyscore, zadd, zcard, zrange, pexpire, ZAddOpts}
-import cats.effect.Concurrent
+import cats.effect._
 import io.chrisdavenport.rediculous.RedisTransaction.TxResult.{Aborted, Success, Error}
 import cats.Applicative
 import scala.concurrent.duration._
@@ -24,14 +24,14 @@ object RedisRateLimiter {
 
   case class RateLimited(namespace: String, info: RateLimitInfo) extends Throwable(s"RateLimiter with namespace $namespace failed") with scala.util.control.NoStackTrace
 
-  def create[F[_]: Concurrent](
+  def create[F[_]: Async](
     connection: RedisConnection[F],
     max: Long = 2500,
     duration: FiniteDuration = 3600000.milliseconds, // milliseconds
     namespace : String = "rediculous-rate-limiter"
   ): RedisRateLimiter[F] = new RedisRateLimiter[F] {
 
-    def getInternal(id: String, remove: Boolean): F[RateLimitInfo] = Concurrent[F].suspend{
+    def getInternal(id: String, remove: Boolean): F[RateLimitInfo] = Concurrent[F].delay{
       val key = s"${namespace}:${id}"
 
       val now = System.currentTimeMillis()
@@ -73,10 +73,10 @@ object RedisRateLimiter {
 
       operations.transact[F].run(connection).flatMap{
         case Success(value) => value.pure[F]
-        case Aborted => Concurrent[F].raiseError(new Throwable("Transaction Aborted"))
-        case Error(value) =>  Concurrent[F].raiseError(new Throwable(s"Transaction Raised Error $value"))
+        case Aborted => Concurrent[F].raiseError[RateLimitInfo](new Throwable("Transaction Aborted"))
+        case Error(value) =>  Concurrent[F].raiseError[RateLimitInfo](new Throwable(s"Transaction Raised Error $value"))
       }
-    }
+    }.flatten
 
     def get(id: String): F[RateLimitInfo] = getInternal(id, false)
 
