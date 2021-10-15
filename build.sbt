@@ -30,6 +30,7 @@ lazy val core = project.in(file("core"))
       "io.chrisdavenport"           %% "mapref"                     % "0.2.0-M2",
       "io.chrisdavenport"           %% "circuit"                    % "0.5.0-M1",
       "io.chrisdavenport"           %% "mules"                      % "0.5.0-M1",
+      "io.chrisdavenport"           %% "single-fibered"             % "0.1.0",
 
       // Deps we may use in the future, but don't need presently.
       // "io.circe"                    %% "circe-generic"              % circeV,

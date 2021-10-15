@@ -7,6 +7,7 @@ import cats.effect._
 import io.chrisdavenport.mules._
 import io.chrisdavenport.rediculous._
 import cats.effect.syntax.all._
+import cats.data.Func
 
 object RedisCache {
 
@@ -76,6 +77,35 @@ object RedisCache {
     }.flatMap(pubsub => pubsub.runMessages.background.void).as{
       val redis = instance(connection, namespace, setOpts)
       layer(topCache, redis)
+    }
+  }
+
+  // Does not require any redis changes
+  // Does not see redis expirations so you will want expirations on the top 
+  // cache to mirror the cache as best as possible as there will be some 
+  // delays here.
+  def channelBasedLayered[F[_]: Async](
+    topCache: Cache[F, String, String],
+    connection: RedisConnection[F],
+    namespace: String,
+    setOpts: RedisCommands.SetOpts
+  ): Resource[F, Cache[F, String, String]] = {
+    val channel = namespace
+    val redis = instance(connection, namespace, setOpts)
+    val layered = layer(topCache, redis)
+    def publishChange(key: String): F[Int] = 
+      RedisConnection.runRequestTotal[F, Int](cats.data.NonEmptyList.of("publish", channel, key), None).run(connection)
+    val cache = new Cache[F, String, String]{
+      def lookup(k: String): F[Option[String]] = layered.lookup(k)
+      
+      def insert(k: String, v: String): F[Unit] = layered.insert(k, v) >> publishChange(k).void
+      
+      def delete(k: String): F[Unit] = layered.delete(k) >> publishChange(k).void
+    }
+    RedisPubSub.fromConnection(connection, 4096, Function.const(Applicative[F].unit), Function.const(Applicative[F].unit)).flatMap{
+      pubsub => 
+        Resource.eval(pubsub.subscribe(channel, {message: RedisPubSub.PubSubMessage.Message => topCache.delete(message.message)})) >>
+        pubsub.runMessages.background.as(cache)
     }
   }
 
