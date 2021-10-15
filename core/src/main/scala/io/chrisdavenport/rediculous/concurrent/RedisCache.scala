@@ -6,6 +6,7 @@ import cats.conversions._
 import cats.effect._
 import io.chrisdavenport.mules._
 import io.chrisdavenport.rediculous._
+import cats.effect.syntax.all._
 
 object RedisCache {
 
@@ -45,6 +46,39 @@ object RedisCache {
     
   }
 
+  def keySpacePubSubLayered[F[_]: Async](
+    topCache: Cache[F, String, String],
+    connection: RedisConnection[F],
+    namespace: String,
+    setOpts: RedisCommands.SetOpts
+  ): Resource[F, Cache[F, String, String]] = {
+    val nameSpaceStarter = namespace ++ ":"
+    RedisPubSub.fromConnection(
+      connection,
+      4096,
+      Function.const(Applicative[F].unit),
+      Function.const(Applicative[F].unit)
+    ).evalMap{ pubsub => 
+      def invalidateTopCache(message: RedisPubSub.PubSubMessage.PMessage): F[Unit] = {
+        val channel = message.channel
+        val msg = message.message
+        val keyR = ("__keyspace.*__:" + nameSpaceStarter + "(.*)").r
+        val parsed: String = channel match {
+          case keyR(key) => key
+        }
+        msg match {
+          case "set" | "expired" | "del" => topCache.delete(parsed) >> Concurrent[F].unit.map(_ => println(s"Deleted $parsed"))
+          case _ => Concurrent[F].unit.map(_ => println(s"Unhandled $message"))
+        }
+      }
+      pubsub.psubscribe(s"__keyspace*__:$nameSpaceStarter*", invalidateTopCache)
+        .as(pubsub)
+    }.flatMap(pubsub => pubsub.runMessages.background.void).as{
+      val redis = instance(connection, namespace, setOpts)
+      layer(topCache, redis)
+    }
+  }
+
   def instance[F[_]: Async](
     connection: RedisConnection[F],
     namespace: String,
@@ -66,7 +100,6 @@ object RedisCache {
     
     def delete(k: String): F[Unit] = 
       RedisCommands.del(nameSpaceStarter ++ k).void.run(connection)
-    
   }
   
 }
