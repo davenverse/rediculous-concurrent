@@ -162,4 +162,93 @@ object RedisRateLimiter {
     
   }
 
+
+  def slidingWindow[F[_]: Async](
+    connection: RedisConnection[F],
+    maxRate: String => Long,
+    periodSeconds: Long,
+    namespace: String = "rediculous-rate-limiter",
+    useRedisTime: Boolean = false,
+  ): RateLimiter[F, String] = 
+    new SlidingWindow[F](connection, maxRate, periodSeconds, namespace).mapK{
+      if (useRedisTime) redisTime(connection) else temporalTime
+    }
+
+  private class SlidingWindow[F[_]: Async](
+    connection: RedisConnection[F],
+    maxRate: String => Long,
+    periodSeconds: Long,
+    namespace : String,
+  ) extends RateLimiter[Kleisli[F, FiniteDuration, *], String]{
+
+    val comment = RateLimiter.QuotaComment("comment", Either.right("sliding window"))
+    def limit(k: String) = {
+      val max = maxRate(k)
+      RateLimiter.RateLimitLimit(max, RateLimiter.QuotaPolicy(max, periodSeconds, comment :: Nil) :: Nil)
+    }
+
+    def createRateLimit(secondsLeftInPeriod: Long, k: String, lastPeriodCount: Long, currentCount: Long): RateLimiter.RateLimit = {
+      val l = limit(k)
+      val percent = ((secondsLeftInPeriod - 1).toDouble / periodSeconds.toDouble)
+      val fromLastPeriod = Math.floor(percent * lastPeriodCount).toLong
+      val remain = l.limit - fromLastPeriod - currentCount
+      val remaining = RateLimiter.RateLimitRemaining(Math.max(remain, 0))
+      val reset = if (remain <= 0 && fromLastPeriod > 0) {
+        def secondsTillNewPermitsFromLast(nextSecond: Int): RateLimiter.RateLimitReset = {
+          val percent = (((secondsLeftInPeriod - 1).toDouble - nextSecond) / periodSeconds.toDouble)
+          val newFromLastPeriod = Math.floor(percent * lastPeriodCount).toLong
+          if (newFromLastPeriod < fromLastPeriod) {
+            RateLimiter.RateLimitReset(nextSecond.toLong)
+          } else if (nextSecond + secondsLeftInPeriod >= periodSeconds){
+            RateLimiter.RateLimitReset(secondsLeftInPeriod)
+          } else secondsTillNewPermitsFromLast(nextSecond + 1)
+        }
+        secondsTillNewPermitsFromLast(1)
+      } else {
+        RateLimiter.RateLimitReset(secondsLeftInPeriod)
+      }
+
+      RateLimiter.RateLimit(
+        if (remain < 0) RateLimiter.WhetherToRateLimit.ShouldRateLimit else RateLimiter.WhetherToRateLimit.ShouldNotRateLimit,
+        l,
+        remaining,
+        reset
+      )
+    }
+
+    def get(id: String): Kleisli[F,FiniteDuration,RateLimiter.RateLimit] = Kleisli{(fd: FiniteDuration) =>
+      val secondsSinceEpoch = fd.toSeconds
+      val periodNumber = secondsSinceEpoch / periodSeconds
+      val periodEndSeconds = (periodNumber + 1)  * periodSeconds
+      val secondsLeftInPeriod = periodEndSeconds - secondsSinceEpoch
+      (
+        RedisCommands.get[RedisPipeline](s"$namespace$id${periodNumber - 1}").map(_.map(_.toLong).getOrElse(0L)),
+        RedisCommands.get[RedisPipeline](s"$namespace$id$periodNumber").map(_.map(_.toLong).getOrElse(0L))
+      ).tupled.pipeline[F].run(connection)
+        .map{ case (last, current) => 
+          createRateLimit(secondsLeftInPeriod, id, last, current)
+        }
+    }
+    
+    def getAndDecrement(id: String): Kleisli[F,FiniteDuration,RateLimiter.RateLimit] = Kleisli{(fd: FiniteDuration) =>
+      val secondsSinceEpoch = fd.toSeconds
+      val periodNumber = secondsSinceEpoch / periodSeconds
+      val periodEndSeconds = (periodNumber + 1)  * periodSeconds
+      val secondsLeftInPeriod = periodEndSeconds - secondsSinceEpoch
+      val key = s"$namespace$id$periodNumber"
+      (
+        RedisCommands.get[RedisPipeline](s"$namespace$id${periodNumber - 1}").map(_.map(_.toLong).getOrElse(0L)),
+        RedisCommands.incr[RedisPipeline](key),
+        io.chrisdavenport.rediculous.RedisCtx[RedisPipeline].keyed[Int](key, NonEmptyList.of("EXPIRE", key, (secondsLeftInPeriod + 1).toString(), "NX"))
+      ).mapN{ case(last, current, _) =>
+        createRateLimit(secondsLeftInPeriod, id, last, current)
+      }.pipeline.run(connection)
+    }
+    
+    def rateLimit(id: String): Kleisli[F,FiniteDuration,RateLimiter.RateLimit] = getAndDecrement(id).flatMap{
+      case r@RateLimiter.RateLimit(RateLimiter.WhetherToRateLimit.ShouldRateLimit, _, _, _) => 
+        Kleisli.liftF(RateLimiter.FastRateLimited(id, r).raiseError[F, RateLimiter.RateLimit])
+      case otherwise =>  Kleisli.liftF(otherwise.pure[F])
+    }
+  }
 }
