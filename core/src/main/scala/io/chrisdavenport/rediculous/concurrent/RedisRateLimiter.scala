@@ -7,31 +7,18 @@ import cats.effect._
 import io.chrisdavenport.rediculous.RedisTransaction.TxResult.{Aborted, Success, Error}
 import cats.Applicative
 import scala.concurrent.duration._
-
-trait RedisRateLimiter[F[_]]{
-  def get(id: String): F[RedisRateLimiter.RateLimitInfo]
-  def getAndDecrement(id: String): F[RedisRateLimiter.RateLimitInfo]
-  def rateLimit(id: String): F[RedisRateLimiter.RateLimitInfo]
-}
+import io.chrisdavenport.ratelimit.RateLimiter
 
 object RedisRateLimiter {
 
-  case class RateLimitInfo(
-    remaining: Long, // Remaining attempts
-    total: Long, // max rate allowed for interval
-    reset: FiniteDuration, // Time until all permits have reset
-  )
-
-  case class RateLimited(namespace: String, info: RateLimitInfo) extends Throwable(s"RateLimiter with namespace $namespace failed") with scala.util.control.NoStackTrace
-
-  def create[F[_]: Async](
+  def slidingLog[F[_]: Async](
     connection: RedisConnection[F],
     max: Long = 2500,
     duration: FiniteDuration = 3600000.milliseconds, // milliseconds
     namespace : String = "rediculous-rate-limiter"
-  ): RedisRateLimiter[F] = new RedisRateLimiter[F] {
+  ): RateLimiter[F, String] = new RateLimiter[F, String] {
 
-    def getInternal(id: String, remove: Boolean): F[RateLimitInfo] = Concurrent[F].delay{
+    def getInternal(id: String, remove: Boolean): F[RateLimiter.RateLimit] = Concurrent[F].delay{
       val key = s"${namespace}:${id}"
 
       val now = System.currentTimeMillis()
@@ -64,27 +51,29 @@ object RedisRateLimiter {
             val reset = resetMillis.millis - now.millis
             val total = max
 
-            RateLimitInfo(
-              remaining, // Rate Limit Remaining
-              total, // Total Permits
-              reset, // Time to reset
+            RateLimiter.RateLimit(
+              whetherToRateLimit = if (count > max) RateLimiter.WhetherToRateLimit.ShouldRateLimit else RateLimiter.WhetherToRateLimit.ShouldNotRateLimit,
+              remaining = RateLimiter.RateLimitRemaining(remaining.toLong), // Rate Limit Remaining
+              limit = RateLimiter.RateLimitLimit(total, List.empty), // Total Permits
+              reset = RateLimiter.RateLimitReset(reset.toSeconds), // Time to reset
             )
         }
 
       operations.transact[F].run(connection).flatMap{
         case Success(value) => value.pure[F]
-        case Aborted => Concurrent[F].raiseError[RateLimitInfo](new Throwable("Transaction Aborted"))
-        case Error(value) =>  Concurrent[F].raiseError[RateLimitInfo](new Throwable(s"Transaction Raised Error $value"))
+        case Aborted => Concurrent[F].raiseError[RateLimiter.RateLimit](new Throwable("Transaction Aborted"))
+        case Error(value) =>  Concurrent[F].raiseError[RateLimiter.RateLimit](new Throwable(s"Transaction Raised Error $value"))
       }
     }.flatten
 
-    def get(id: String): F[RateLimitInfo] = getInternal(id, false)
+    def get(id: String): F[RateLimiter.RateLimit] = getInternal(id, false)
 
-    def getAndDecrement(id: String): F[RateLimitInfo] = getInternal(id, true)
+    def getAndDecrement(id: String): F[RateLimiter.RateLimit] = getInternal(id, true)
 
-    def rateLimit(id: String): F[RateLimitInfo] = get(id).flatMap{
-      case r@RateLimitInfo(0, _, _) => RateLimited(namespace, r).raiseError[F, RateLimitInfo]
-      case _ => getAndDecrement(id)
+    def rateLimit(id: String): F[RateLimiter.RateLimit] = getAndDecrement(id).flatMap{
+      case r@RateLimiter.RateLimit(RateLimiter.WhetherToRateLimit.ShouldRateLimit, _, _, _) => 
+        RateLimiter.FastRateLimited(id, r).raiseError[F, RateLimiter.RateLimit]
+      case otherwise => otherwise.pure[F]
     }
   }
 
