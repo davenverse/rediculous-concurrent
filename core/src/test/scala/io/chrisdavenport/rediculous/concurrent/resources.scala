@@ -18,7 +18,7 @@ object resources {
 
   def redisConnection: Resource[IO, RedisConnection[IO]] = for {
     container <- redisContainer[IO].map(_.container)
-    connection <- RedisConnection.queued[IO](Network[IO], Host.fromString(container.getContainerIpAddress()).get, Port.fromInt(container.getMappedPort(6379)).get, maxQueued = 10000, workers = 4)
+    connection <- RedisConnection.queued[IO].withHost(Host.fromString(container.getContainerIpAddress()).get).withPort(Port.fromInt(container.getMappedPort(6379)).get).build
   } yield connection
   
 
