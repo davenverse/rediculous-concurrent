@@ -55,10 +55,7 @@ object RedisCache {
   ): Resource[F, Cache[F, String, String]] = {
     val nameSpaceStarter = namespace ++ ":"
     RedisPubSub.fromConnection(
-      connection,
-      4096,
-      Function.const(Applicative[F].unit),
-      Function.const(Applicative[F].unit)
+      connection
     ).evalMap{ pubsub => 
       def invalidateTopCache(message: RedisPubSub.PubSubMessage.PMessage): F[Unit] = {
         val channel = message.channel
@@ -93,8 +90,7 @@ object RedisCache {
     val channel = namespace
     val redis = instance(connection, namespace, setOpts)
     val layered = layer(topCache, redis)
-    def publishChange(key: String): F[Int] = 
-      RedisConnection.runRequestTotal[F, Int](cats.data.NonEmptyList.of("publish", channel, key), None).run(connection)
+    def publishChange(key: String) = RedisCommands.publish(channel, key).run(connection)
     val cache = new Cache[F, String, String]{
       def lookup(k: String): F[Option[String]] = layered.lookup(k)
       
@@ -102,7 +98,7 @@ object RedisCache {
       
       def delete(k: String): F[Unit] = layered.delete(k) >> publishChange(k).void
     }
-    RedisPubSub.fromConnection(connection, 4096, Function.const(Applicative[F].unit), Function.const(Applicative[F].unit)).flatMap{
+    RedisPubSub.fromConnection(connection).flatMap{
       pubsub => 
         Resource.eval(pubsub.subscribe(channel, {message: RedisPubSub.PubSubMessage.Message => topCache.delete(message.message)})) >>
         pubsub.runMessages.background.as(cache)
