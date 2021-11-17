@@ -59,7 +59,8 @@ object RedisCache {
     topCache: Cache[F, String, String],
     connection: RedisConnection[F],
     namespace: String,
-    setOpts: RedisCommands.SetOpts
+    setOpts: RedisCommands.SetOpts,
+    additionalActionOnDelete: Option[String => F[Unit]] = None
   ): Resource[F, Cache[F, String, String]] = {
     val nameSpaceStarter = namespace ++ ":"
     RedisPubSub.fromConnection(
@@ -73,8 +74,8 @@ object RedisCache {
           case keyR(key) => key
         }
         msg match {
-          case "set" | "expired" | "del" => topCache.delete(parsed) >> Concurrent[F].unit.map(_ => println(s"Deleted $parsed"))
-          case _ => Concurrent[F].unit.map(_ => println(s"Unhandled $message"))
+          case "set" | "expired" | "del" => topCache.delete(parsed)  >> additionalActionOnDelete.traverse_(_.apply(message.message))
+          case _ => Concurrent[F].unit
         }
       }
       pubsub.psubscribe(s"__keyspace*__:$nameSpaceStarter*", invalidateTopCache)
@@ -93,7 +94,8 @@ object RedisCache {
     topCache: Cache[F, String, String],
     connection: RedisConnection[F],
     namespace: String,
-    setOpts: RedisCommands.SetOpts
+    setOpts: RedisCommands.SetOpts,
+    additionalActionOnDelete: Option[String => F[Unit]] = None
   ): Resource[F, Cache[F, String, String]] = {
     val channel = namespace
     val redis = instance(connection, namespace, setOpts)
@@ -101,7 +103,7 @@ object RedisCache {
     
     (Resource.eval(layer[F, String, String](topCache, redis)), RedisPubSub.fromConnection(connection)).tupled.flatMap{
       case (layered, pubsub) => 
-        Resource.eval(pubsub.subscribe(channel, {message: RedisPubSub.PubSubMessage.Message => topCache.delete(message.message)})) >>
+        Resource.eval(pubsub.subscribe(channel, {message: RedisPubSub.PubSubMessage.Message => topCache.delete(message.message) >> additionalActionOnDelete.traverse_(_.apply(message.message))})) >>
         pubsub.runMessages.background.as{
           new Cache[F, String, String]{
             def lookup(k: String): F[Option[String]] = layered.lookup(k)
