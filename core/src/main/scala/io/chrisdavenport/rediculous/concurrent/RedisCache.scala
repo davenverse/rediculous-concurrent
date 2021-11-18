@@ -65,7 +65,8 @@ object RedisCache {
   ): Resource[F, Cache[F, String, String]] = {
     val nameSpaceStarter = namespace ++ ":"
     RedisPubSub.fromConnection(
-      connection
+      connection,
+      clusterBroadcast = true
     ).evalMap{ pubsub => 
       def invalidateTopCache(message: RedisPubSub.PubSubMessage.PMessage): F[Unit] = {
         val channel = message.channel
@@ -94,6 +95,7 @@ object RedisCache {
   def channelBasedLayered[F[_]: Async](
     topCache: Cache[F, String, String],
     connection: RedisConnection[F],
+    pubsub: RedisPubSub[F],
     namespace: String,
     setOpts: RedisCommands.SetOpts,
     additionalActionOnDelete: Option[String => F[Unit]] = None
@@ -102,8 +104,8 @@ object RedisCache {
     val redis = instance(connection, namespace, setOpts)
     def publishChange(key: String) = RedisCommands.publish(channel, key).run(connection)
     
-    (Resource.eval(layer[F, String, String](topCache, redis)), RedisPubSub.fromConnection(connection)).tupled.flatMap{
-      case (layered, pubsub) => 
+    Resource.eval(layer[F, String, String](topCache, redis)).flatMap{
+      case layered => 
         Resource.eval(pubsub.subscribe(channel, {message: RedisPubSub.PubSubMessage.Message => topCache.delete(message.message) >> additionalActionOnDelete.traverse_(_.apply(message.message))})) >>
         pubsub.runMessages.background.as{
           new Cache[F, String, String]{
