@@ -9,6 +9,7 @@ import fs2.io.net._
 import scala.concurrent.duration._
 import cats.syntax.SetOps
 import com.comcast.ip4s._
+import _root_.io.chrisdavenport.mapref.MapRef
 
 object Main extends IOApp {
 
@@ -21,10 +22,13 @@ object Main extends IOApp {
       // maxQueued: How many elements before new submissions semantically block. Tradeoff of memory to queue jobs. 
       // Default 1000 is good for small servers. But can easily take 100,000.
       // workers: How many threads will process pipelined messages.
-      connection <- RedisConnection.queued[IO](Network[IO], host"localhost", port"6379", maxQueued = 10000, workers = 4)
-    } yield connection
+      connection <- RedisConnection.queued[IO].withHost(host"localhost").withPort(port"6379").withMaxQueued(10000).withWorkers(workers = 1).build
+      topCache <- Resource.eval(_root_.io.chrisdavenport.mules.MemoryCache.ofSingleImmutableMap[IO, String, String](None))
+      pubsub <- RedisPubSub.fromConnection(connection)
+      cache <- RedisCache.channelBasedLayered(topCache, connection, pubsub, "namespace2", RedisCommands.SetOpts(Some(60), None, None, false), {(s: String) => IO.println(s"Deleted: $s")}.some)
+    } yield (connection, pubsub, topCache, cache)
 
-    r.use{ connection => 
+    r.use{ case (connection, pubsub, top, cache) => 
       // val ref = RedisRef.liftedDefaultStorage(
       //   RedisRef.lockedOptionRef(connection, "ref-test", 1.seconds, 10.seconds, RedisCommands.SetOpts(None, None, None, false)),
       //   "0"
@@ -33,20 +37,20 @@ object Main extends IOApp {
       //   val y = x + 1
       //   (y,y)
       // }
-      val now = IO.delay(System.currentTimeMillis().millis)
-      def time[A](io: IO[A]): IO[A] = 
-        (now, io, now).tupled.flatMap{
-          case (begin, out, end) => 
-            (end - begin).putStrLn.map(_ => out)
-        }
+      // val now = IO.delay(System.currentTimeMillis().millis)
+      // def time[A](io: IO[A]): IO[A] = 
+      //   (now, io, now).tupled.flatMap{
+      //     case (begin, out, end) => 
+      //       (end - begin).putStrLn.map(_ => out)
+      //   }
 
-      val barrier = RedisCyclicBarrier.create[IO](connection, "test-cyclic-barrier", 5, 1.seconds, 1.seconds, 10.millis, 20.minutes, RedisCommands.SetOpts(None, Some(24.hours.toMillis), None, false))
+      // val barrier = RedisCyclicBarrier.create[IO](connection, "test-cyclic-barrier", 5, 1.seconds, 1.seconds, 10.millis, 20.minutes, RedisCommands.SetOpts(None, Some(24.hours.toMillis), None, false))
 
-      Stream.repeatEval(
-        time(
-          (barrier.await, IO.race(barrier.await, Temporal[IO].sleep(500.millis) >> barrier.await), barrier.await, Temporal[IO].sleep(1.second) >> barrier.await).parTupled
-        )
-      ).take(10).compile.drain
+      // Stream.repeatEval(
+      //   time(
+      //     (barrier.await, IO.race(barrier.await, Temporal[IO].sleep(500.millis) >> barrier.await), barrier.await, Temporal[IO].sleep(1.second) >> barrier.await).parTupled
+      //   )
+      // ).take(10).compile.drain
 
 
         // // Layered Cache
@@ -55,7 +59,15 @@ object Main extends IOApp {
         // val layered = RedisCache.layer(cache, cache2)
 
         // RedisCommands.get[Redis[IO, *]]("namespace1:test3").run(connection).flatTap(_.putStrLn) >>
-        // cache2.insert("test3", "value1") >> 
+        cache.insert("test3", "value1") >> 
+        cache.lookup("test3").flatTap(IO.println(_)) >> 
+        pubsub.publish("namespace2", "test3") >>
+        IO.sleep(1.second) >>
+        // RedisCommands.del[Redis[IO, *]]("namespace2:test3").run(connection).flatTap(IO.println(_)) >>
+        top.lookup("test3").flatTap(IO.println(_)) >>
+        cache.lookup("test3").flatTap(IO.println(_)) 
+        // Temporal[IO].sleep(30.seconds) >>
+
         // layered.lookup("test3").flatTap(_.putStrLn) >> 
         // RedisCommands.get[Redis[IO, *]]("namespace1:test3").run(connection).flatTap(_.putStrLn) >>
         // RedisCommands.get[Redis[IO, *]]("namespace2:test3").run(connection).flatTap(_.putStrLn)
