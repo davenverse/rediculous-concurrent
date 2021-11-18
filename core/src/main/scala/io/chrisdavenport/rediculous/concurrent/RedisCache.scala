@@ -22,14 +22,12 @@ object RedisCache {
    * inserts and deletes are proliferated to top and then bottom
    */
   def layer[F[_]: Concurrent, K, V](top: Cache[F, K, V], bottom: Cache[F, K, V]): F[Cache[F, K, V]] = {
-    val f: K => F[Option[V]] = {(k: K) => top.lookup(k).flatMap{
-        case s@Some(_) => s.pure[F].widen
-        case None => bottom.lookup(k).flatMap{
+    val f: K => F[Option[V]] = {(k: K) => bottom.lookup(k).flatMap{
           case None => Option.empty[V].pure[F]
           case s@Some(v) => 
             top.insert(k, v).as(s).widen
         }
-      }}
+      }
     SingleFibered.prepareFunction(f).map(preppedF => 
       new LayeredCache[F, K, V](top, bottom, preppedF)
     )
@@ -42,7 +40,10 @@ object RedisCache {
     lookupCached: K => F[Option[V]]
   ) extends Cache[F, K, V]{
     def lookup(k: K): F[Option[V]] = 
-      lookupCached(k)
+      topLayer.lookup(k).flatMap{
+        case s@Some(_) => s.pure[F].widen
+        case None => lookupCached(k)
+      }
       
     
     def insert(k: K, v: V): F[Unit] = 
