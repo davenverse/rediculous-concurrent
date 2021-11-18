@@ -74,6 +74,16 @@ object RedisCache {
    * Updates are not immediate, so should not be seen as atomic, but
    * are very useful for keeping your local caches synced with the 
    * redis store.
+   * 
+   * Example
+   *  val r = for {
+   *   // maxQueued: How many elements before new submissions semantically block. Tradeoff of memory to queue jobs. 
+   *   // Default 1000 is good for small servers. But can easily take 100,000.
+   *   // workers: How many threads will process pipelined messages.
+   *   connection <- RedisConnection.queued[IO].withHost(host"localhost").withPort(port"6379").withMaxQueued(10000).withWorkers(workers = 1).build
+   *   topCache <- Resource.eval(_root_.io.chrisdavenport.mules.MemoryCache.ofSingleImmutableMap[IO, String, String](None))
+   *   cache <- RedisCache.keySpacePubSubLayere(topCache, connection, "namespace2", RedisCommands.SetOpts(Some(60), None, None, false), {(s: String) => IO.println(s"Deleted: $s")}.some)
+   * } yield (connection, cache)
    **/
   def keySpacePubSubLayered[F[_]: Async](
     topCache: Cache[F, String, String],
