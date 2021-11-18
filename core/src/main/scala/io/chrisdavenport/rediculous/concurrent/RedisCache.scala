@@ -56,6 +56,25 @@ object RedisCache {
     
   }
 
+  /**
+   * A Keyspace Based Pubsub Layered Cache. 
+   * 
+   * Redis with the right configuration allows pubsub notifications over
+   * all of its internal modifications to a section of the keyspace.
+   * 
+   * https://redis.io/topics/notifications
+   * 
+   * Configuring this is as simple locally as 
+   * redis-cli config set notify-keyspace-events KA
+   * or by modifying your server config.
+   * 
+   * Notably, in cluster mode these do not leave the local server unlike normal
+   * pubsub events so connections must be made to all servers in the cluster.
+   * 
+   * Updates are not immediate, so should not be seen as atomic, but
+   * are very useful for keeping your local caches synced with the 
+   * redis store.
+   **/
   def keySpacePubSubLayered[F[_]: Async](
     topCache: Cache[F, String, String],
     connection: RedisConnection[F],
@@ -88,10 +107,32 @@ object RedisCache {
     }
   }
 
-  // Does not require any redis changes
-  // Does not see redis expirations so you will want expirations on the top 
-  // cache to mirror the cache as best as possible as there will be some 
-  // delays here.
+  /**
+   * A Pubsub Channel Based Layered Cache. Other nodes utilizing the same cache notify
+   * each other via RedisPubSub.
+   * 
+   * As a result the only changes represented are those that are represented 
+   * by the nodes, modifications based in redis are not seen. Such as redis expirations.
+   * A cache with an infinite lifetime in redis will see correct information in their
+   * local cache at all times. A cache that sets expiration in redis can be off by the
+   * period of retention of their local cache. Assuming you get the data the moment before
+   * it expires inside redis.
+   * 
+   * If you are using expirations, which you should a shorter retention period for
+   * your local cache will prevent you from being too out of date.
+   * 
+   * Example
+   * 
+   * val r = for {
+   *   // maxQueued: How many elements before new submissions semantically block. Tradeoff of memory to queue jobs. 
+   *   // Default 1000 is good for small servers. But can easily take 100,000.
+   *   // workers: How many threads will process pipelined messages.
+   *   connection <- RedisConnection.queued[IO].withHost(host"localhost").withPort(port"6379").withMaxQueued(10000).withWorkers(workers = 1).build
+   *   topCache <- Resource.eval(_root_.io.chrisdavenport.mules.MemoryCache.ofSingleImmutableMap[IO, String, String](None))
+   *   pubsub <- RedisPubSub.fromConnection(connection)
+   *   cache <- RedisCache.channelBasedLayered(topCache, connection, pubsub, "namespace2", RedisCommands.SetOpts(Some(60), None, None, false), {(s: String) => IO.println(s"Deleted: $s")}.some)
+   * } yield (connection, cache)
+   **/
   def channelBasedLayered[F[_]: Async](
     topCache: Cache[F, String, String],
     connection: RedisConnection[F],
