@@ -24,10 +24,11 @@ object Main extends IOApp {
       // workers: How many threads will process pipelined messages.
       connection <- RedisConnection.queued[IO].withHost(host"localhost").withPort(port"6379").withMaxQueued(10000).withWorkers(workers = 1).build
       topCache <- Resource.eval(_root_.io.chrisdavenport.mules.MemoryCache.ofSingleImmutableMap[IO, String, String](None))
-      cache <- RedisCache.keySpacePubSubLayered(topCache, connection, "namespace2", RedisCommands.SetOpts(Some(60), None, None, false))
-    } yield (connection, topCache, cache)
+      pubsub <- RedisPubSub.fromConnection(connection)
+      cache <- RedisCache.channelBasedLayered(topCache, connection, pubsub, "namespace2", RedisCommands.SetOpts(Some(60), None, None, false), {(s: String) => IO.println(s"Deleted: $s")}.some)
+    } yield (connection, pubsub, topCache, cache)
 
-    r.use{ case (connection, top, cache) => 
+    r.use{ case (connection, pubsub, top, cache) => 
       // val ref = RedisRef.liftedDefaultStorage(
       //   RedisRef.lockedOptionRef(connection, "ref-test", 1.seconds, 10.seconds, RedisCommands.SetOpts(None, None, None, false)),
       //   "0"
@@ -60,8 +61,11 @@ object Main extends IOApp {
         // RedisCommands.get[Redis[IO, *]]("namespace1:test3").run(connection).flatTap(_.putStrLn) >>
         cache.insert("test3", "value1") >> 
         cache.lookup("test3").flatTap(IO.println(_)) >> 
-        RedisCommands.del[Redis[IO, *]]("namespace2:test3").run(connection).flatTap(IO.println(_)) >>
-        cache.lookup("test3").flatTap(IO.println(_))
+        pubsub.publish("namespace2", "test3") >>
+        IO.sleep(1.second) >>
+        // RedisCommands.del[Redis[IO, *]]("namespace2:test3").run(connection).flatTap(IO.println(_)) >>
+        top.lookup("test3").flatTap(IO.println(_)) >>
+        cache.lookup("test3").flatTap(IO.println(_)) 
         // Temporal[IO].sleep(30.seconds) >>
 
         // layered.lookup("test3").flatTap(_.putStrLn) >> 
