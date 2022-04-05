@@ -15,6 +15,8 @@ import scala.concurrent.duration._
 import java.util.concurrent.TimeUnit
 import cats.effect._
 import io.chrisdavenport.rediculous.{RedisCommands,RedisConnection}
+import io.chrisdavenport.rediculous.RedisCtx.syntax.all._
+import scala.concurrent.duration.FiniteDuration
 
 object RedisCircuit {
 
@@ -26,14 +28,14 @@ object RedisCircuit {
     setOpts: RedisCommands.SetOpts,
     maxFailures: Int,
     resetTimeout: FiniteDuration,
-    exponentialBackoffFactor: Double,
+    backoff: FiniteDuration => FiniteDuration,
     maxResetTimeout: Duration
   ): CircuitBreaker[F] = {
     val ref = RedisRef.liftedDefaultStorage(
       RedisRef.optionJsonRef[F, State](RedisRef.lockedOptionRef(redisConnection, key, acquireTimeout, lockDuration, setOpts)),
       CircuitBreaker.Closed(0)
     )
-    CircuitBreaker.unsafe(ref, maxFailures, resetTimeout, exponentialBackoffFactor, maxResetTimeout, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit)
+    CircuitBreaker.unsafe(ref, maxFailures, resetTimeout, backoff, maxResetTimeout, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit)
   }
 
   def keyCircuit[F[_]: Async](
@@ -43,17 +45,17 @@ object RedisCircuit {
     setOpts: RedisCommands.SetOpts,
     maxFailures: Int,
     resetTimeout: FiniteDuration,
-    exponentialBackoffFactor: Double,
+    backoff: FiniteDuration => FiniteDuration,
     maxResetTimeout: Duration
   ): String => CircuitBreaker[F] = {
     val base: RedisMapRef[F] = RedisMapRef.impl[F](redisConnection, acquireTimeout, lockDuration, setOpts)
     val closed: String = (CircuitBreaker.Closed(0): State).asJson.noSpaces
 
-    {key: String => 
+    {(key: String) => 
       val ref = RedisRef.liftedDefaultStorage(base.apply(key), closed)
       val stateRef = RedisRef.jsonRef[F, State](ref)
 
-      CircuitBreaker.unsafe(stateRef, maxFailures, resetTimeout, exponentialBackoffFactor, maxResetTimeout, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit)
+      CircuitBreaker.unsafe(stateRef, maxFailures, resetTimeout, backoff, maxResetTimeout, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit)
     }
   }
 

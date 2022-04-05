@@ -7,6 +7,7 @@ import cats.effect.syntax.all._
 import io.circe._
 import io.circe.syntax._
 import io.chrisdavenport.rediculous._
+import io.chrisdavenport.rediculous.RedisCtx.syntax.all._
 import scala.concurrent.duration._
 import java.util.UUID
 

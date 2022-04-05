@@ -3,6 +3,7 @@ package io.chrisdavenport.rediculous.concurrent
 import cats._
 import cats.syntax.all._
 import io.chrisdavenport.rediculous._
+import io.chrisdavenport.rediculous.RedisCtx.syntax.all._
 import cats.effect._
 import io.chrisdavenport.rediculous.RedisTransaction.TxResult.{Aborted, Success, Error}
 import scala.concurrent.duration._
@@ -40,7 +41,7 @@ object RedisRef {
         .run(redisConnection)
         .flatMap(o => Sync[F].delay(o.get))
         .map{init => 
-          (init, {after => 
+          (init, {(after: String) => 
             RedisCommands.set[RedisTransaction](key, after)
             .transact
             .run(redisConnection)
@@ -149,14 +150,14 @@ object RedisRef {
     
     def access: F[(A, A => F[Boolean])] = ref.access.map{
       case (opt, cb) => 
-        (opt.getOrElse(default), {s: A => 
+        (opt.getOrElse(default), {(s: A) => 
           if (s =!= default) cb(s.some)
           else cb(None)
         })
     }
     
     def tryUpdate(f: A => A): F[Boolean] = 
-      tryModify{s: A => (f(s), ())}.map(_.isDefined)
+      tryModify{(s: A) => (f(s), ())}.map(_.isDefined)
     
     def tryModify[B](f: A => (A, B)): F[Option[B]] =
       ref.tryModify{opt => 
@@ -229,7 +230,7 @@ object RedisRef {
       }
     
     def tryUpdate(f: Option[String] => Option[String]): F[Boolean] = 
-      tryModify({s: Option[String] => (f(s), ())}).map(_.isDefined)
+      tryModify({(s: Option[String]) => (f(s), ())}).map(_.isDefined)
       
     
     def tryModify[B](f: Option[String] => (Option[String], B)): F[Option[B]] = {
@@ -247,7 +248,7 @@ object RedisRef {
       }
     }
     
-    def update(f: Option[String] => Option[String]): F[Unit] = modify{s: Option[String] => (f(s), ())}
+    def update(f: Option[String] => Option[String]): F[Unit] = modify{(s: Option[String]) => (f(s), ())}
     
     def modify[B](f: Option[String] => (Option[String], B)): F[B] =  tryModify(f).flatMap{
       case Some(s) => s.pure[F]
@@ -255,10 +256,10 @@ object RedisRef {
     }
     
     def tryModifyState[B](state: cats.data.State[Option[String],B]): F[Option[B]] = 
-      tryModify{s: Option[String] => state.run(s).value}
+      tryModify{(s: Option[String]) => state.run(s).value}
     
     def modifyState[B](state: cats.data.State[Option[String],B]): F[B] = 
-      modify{s: Option[String] => state.run(s).value}
+      modify{(s: Option[String]) => state.run(s).value}
   }
 
 }

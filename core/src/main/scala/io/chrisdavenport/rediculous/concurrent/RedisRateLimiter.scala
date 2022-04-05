@@ -7,6 +7,7 @@ import cats.effect._
 import io.chrisdavenport.rediculous.RedisTransaction.TxResult.{Aborted, Success, Error}
 import cats.Applicative
 import scala.concurrent.duration._
+import io.chrisdavenport.rediculous.RedisCtx.syntax.all._
 
 trait RedisRateLimiter[F[_]]{
   def get(id: String): F[RedisRateLimiter.RateLimitInfo]

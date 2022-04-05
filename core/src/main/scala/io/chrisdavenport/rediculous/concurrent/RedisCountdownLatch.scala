@@ -10,6 +10,7 @@ import io.chrisdavenport.rediculous.concurrent.RedisCountdownLatch.Awaiting
 import io.chrisdavenport.rediculous.concurrent.RedisCountdownLatch.Done
 import scala.concurrent.duration._
 import cats.syntax.TryOps
+import io.chrisdavenport.rediculous.RedisCtx.syntax.all._
 import cats.instances.finiteDuration
 
 abstract class CountDownLatch[F[_]] { self =>
