@@ -3,6 +3,7 @@ package io.chrisdavenport.rediculous.concurrent
 import cats.syntax.all._
 import cats.effect._
 import io.chrisdavenport.rediculous._
+import io.chrisdavenport.rediculous.RedisCtx.syntax.all._
 import scala.concurrent.duration._
 import io.chrisdavenport.mapref.MapRef
 

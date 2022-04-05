@@ -1,6 +1,7 @@
 package io.chrisdavenport.rediculous.concurrent
 
 import io.chrisdavenport.rediculous._
+import io.chrisdavenport.rediculous.RedisCtx.syntax.all._
 import cats.effect._
 import cats.data.NonEmptyList
 import cats.syntax.all._

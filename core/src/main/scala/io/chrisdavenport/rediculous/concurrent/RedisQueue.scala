@@ -10,6 +10,7 @@ import fs2.Chunk
 import io.chrisdavenport.rediculous.RedisCommands
 import scala.concurrent.duration.FiniteDuration
 import io.chrisdavenport.rediculous.RedisPipeline
+import io.chrisdavenport.rediculous.RedisCtx.syntax.all._
 
 object RedisQueue {
 

@@ -4,6 +4,7 @@ import cats._
 import cats.syntax.all._
 import cats.data.NonEmptyList
 import io.chrisdavenport.rediculous.RedisConnection
+import io.chrisdavenport.rediculous.RedisCtx.syntax.all._
 import cats.effect._
 import cats.effect.syntax._
 import scala.concurrent.duration.FiniteDuration

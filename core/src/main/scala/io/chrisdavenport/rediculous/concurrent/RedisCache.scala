@@ -6,6 +6,7 @@ import cats.conversions._
 import cats.effect._
 import io.chrisdavenport.mules._
 import io.chrisdavenport.rediculous._
+import io.chrisdavenport.rediculous.RedisCtx.syntax.all._
 import cats.effect.syntax.all._
 import cats.data.Func
 import io.chrisdavenport.singlefibered.SingleFibered
@@ -157,7 +158,7 @@ object RedisCache {
     
     Resource.eval(layer[F, String, String](topCache, redis)).flatMap{
       case layered => 
-        Resource.eval(pubsub.subscribe(channel, {message: RedisPubSub.PubSubMessage.Message => topCache.delete(message.message) >> additionalActionOnDelete.traverse_(_.apply(message.message))})) >>
+        Resource.eval(pubsub.subscribe(channel, {(message: RedisPubSub.PubSubMessage.Message) => topCache.delete(message.message) >> additionalActionOnDelete.traverse_(_.apply(message.message))})) >>
         pubsub.runMessages.background.as{
           new Cache[F, String, String]{
             def lookup(k: String): F[Option[String]] = layered.lookup(k)
