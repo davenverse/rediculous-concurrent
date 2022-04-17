@@ -7,6 +7,7 @@ import io.chrisdavenport.rediculous.RedisConnection
 import io.chrisdavenport.rediculous.RedisCtx.syntax.all._
 import cats.effect._
 import cats.effect.syntax._
+import cats.effect.std.UUIDGen
 import scala.concurrent.duration.FiniteDuration
 import io.chrisdavenport.rediculous._
 import io.chrisdavenport.rediculous.RedisProtocol._
@@ -17,7 +18,7 @@ import java.util.UUID
 
 object RedisLock {
 
-  def tryAcquireLock[F[_]: Async](
+  def tryAcquireLock[F[_]: Async: UUIDGen](
     connection: RedisConnection[F],
     lockname: String,
     acquireTimeout: FiniteDuration,
@@ -25,7 +26,7 @@ object RedisLock {
   ): F[Option[UUID]] = {
     val lockName = "lock:" ++ lockname 
     def create: F[Option[UUID]] = for {
-      identifier <- Sync[F].delay(java.util.UUID.randomUUID())
+      identifier <- UUIDGen[F].randomUUID
       status <- RedisCommands.set(lockName, identifier.toString(), 
         RedisCommands.SetOpts(None, Some(lockTimeout.toMillis), Some(Condition.Nx), false)
       ).run(connection)
@@ -61,7 +62,7 @@ object RedisLock {
         }
   }
 
-  def tryAcquireLockWithTimeout[F[_]: Async](
+  def tryAcquireLockWithTimeout[F[_]: Async: UUIDGen](
     connection: RedisConnection[F],
     lockname: String,
     acquireTimeout: FiniteDuration,
@@ -69,7 +70,7 @@ object RedisLock {
   ): Resource[F, Boolean] = {
     val lockName = "lock:" ++ lockname 
     def create: F[Option[String]] = for {
-      identifier <- Sync[F].delay(java.util.UUID.randomUUID())
+      identifier <- UUIDGen[F].randomUUID
       status <- RedisCommands.set(lockName, identifier.toString(), 
         RedisCommands.SetOpts(None, Some(lockTimeout.toMillis), Some(Condition.Nx), false)
       ).run(connection)

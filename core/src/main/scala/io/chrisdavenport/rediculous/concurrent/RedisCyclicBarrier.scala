@@ -9,6 +9,7 @@ import io.circe.syntax._
 import io.chrisdavenport.rediculous._
 import io.chrisdavenport.rediculous.RedisCtx.syntax.all._
 import scala.concurrent.duration._
+import cats.effect.std.UUIDGen
 import java.util.UUID
 
 /**
@@ -36,7 +37,7 @@ trait CyclicBarrier[F[_]]{ self =>
 
 object RedisCyclicBarrier {
 
-  def create[F[_]: Async](
+  def create[F[_]: Async: UUIDGen](
     redisConnection: RedisConnection[F],
     key: String,
     capacity: Int,
@@ -52,7 +53,7 @@ object RedisCyclicBarrier {
   case class State(awaiting: Int, epoch: Long, currentDeferredLocation: String)
 
 
-  private class RedisCyclicBarrier[F[_]: Async](
+  private class RedisCyclicBarrier[F[_]: Async: UUIDGen](
     redisConnection: RedisConnection[F],
     key: String,
     capacity: Int,
@@ -73,7 +74,7 @@ object RedisCyclicBarrier {
       deferredLifetime
     )
 
-    def await: F[Unit] = Sync[F].delay(UUID.randomUUID()).flatMap{ gate => 
+    def await: F[Unit] = UUIDGen[F].randomUUID.flatMap{ gate => 
       ref.modify{
         case Some(State(awaiting, epoch, location)) => 
           val awaitingNow = awaiting - 1

@@ -10,6 +10,7 @@ import io.chrisdavenport.rediculous.RedisTransaction.TxResult
 import scala.concurrent.duration._
 import io.chrisdavenport.rediculous.RedisPipeline
 import java.util.UUID
+import cats.effect.std.UUIDGen
 import cats.data.NonEmptyList
 import io.chrisdavenport.rediculous.RedisTransaction.TxResult.Success
 import io.chrisdavenport.rediculous.RedisTransaction.TxResult.Aborted

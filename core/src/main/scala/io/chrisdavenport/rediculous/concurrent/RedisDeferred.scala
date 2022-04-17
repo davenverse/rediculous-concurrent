@@ -5,6 +5,7 @@ import io.chrisdavenport.rediculous.RedisCtx.syntax.all._
 import cats.effect._
 import cats.data.NonEmptyList
 import cats.syntax.all._
+import cats.effect.std.UUIDGen
 import scala.concurrent.duration.FiniteDuration
 import io.chrisdavenport.rediculous.RedisCommands.Condition
 import io.chrisdavenport.rediculous.RedisProtocol.Status.Ok
@@ -17,11 +18,11 @@ object RedisDeferred {
   /**
     * Creates A Unique Deferred, returning the key and a deferred instance that can be used.
     */
-  def create[F[_]: Async](
+  def create[F[_]: Async: UUIDGen](
     redisConnection: RedisConnection[F],
     pollingInterval: FiniteDuration, 
     lifetime: FiniteDuration
-  ): F[(String, Deferred[F, String])] = Sync[F].delay(java.util.UUID.randomUUID()).map{identifier => 
+  ): F[(String, Deferred[F, String])] = UUIDGen[F].randomUUID.map{identifier => 
     val key = s"deferred:${identifier}"
     (key, fromKey(redisConnection, key, pollingInterval, lifetime))
   }

@@ -8,6 +8,7 @@ import io.chrisdavenport.rediculous.RedisTransaction.TxResult.{Aborted, Success,
 import cats.Applicative
 import scala.concurrent.duration._
 import io.chrisdavenport.rediculous.RedisCtx.syntax.all._
+import cats.effect.std.UUIDGen
 
 trait RedisRateLimiter[F[_]]{
   def get(id: String): F[RedisRateLimiter.RateLimitInfo]
@@ -32,12 +33,12 @@ object RedisRateLimiter {
     namespace : String = "rediculous-rate-limiter"
   ): RedisRateLimiter[F] = new RedisRateLimiter[F] {
 
-    def getInternal(id: String, remove: Boolean): F[RateLimitInfo] = Concurrent[F].delay{
+    // UUID means we avoid overlap at matching milli precision
+    def getInternal(id: String, remove: Boolean): F[RateLimitInfo] = UUIDGen[F].randomUUID.flatMap(random => Concurrent[F].delay{
       val key = s"${namespace}:${id}"
 
       val now = System.currentTimeMillis()
       val start = (now.millis - duration)
-      val random = java.util.UUID.randomUUID() // UUID means we avoid overlap at matching milli precision
 
       val possibleAdd: RedisTransaction[Unit] = 
         if (remove) zadd[RedisTransaction](key, List((now.toDouble, now.toString ++ "-" ++ random.toString())), ZAddOpts(None, false, false)).void 
@@ -77,7 +78,7 @@ object RedisRateLimiter {
         case Aborted => Concurrent[F].raiseError[RateLimitInfo](new Throwable("Transaction Aborted"))
         case Error(value) =>  Concurrent[F].raiseError[RateLimitInfo](new Throwable(s"Transaction Raised Error $value"))
       }
-    }.flatten
+    }.flatten)
 
     def get(id: String): F[RateLimitInfo] = getInternal(id, false)
 
