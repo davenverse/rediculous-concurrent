@@ -1,6 +1,6 @@
-val catsV = "2.6.1"
-val catsEffectV = "3.2.2"
-val fs2V = "3.1.0"
+val catsV = "2.7.0"
+val catsEffectV = "3.3.11"
+val fs2V = "3.2.7"
 val circeV = "0.14.1"
 
 ThisBuild / testFrameworks += new TestFramework("munit.Framework")
@@ -30,7 +30,7 @@ lazy val core = crossProject(JVMPlatform, JSPlatform)
       "io.circe"                    %%% "circe-core"                 % circeV,
       "io.circe"                    %%% "circe-parser"               % circeV,
 
-      "io.chrisdavenport"           %%% "rediculous"                 % "0.2.0",
+      "io.chrisdavenport"           %%% "rediculous"                 % "0.3.0",
       "io.chrisdavenport"           %%% "mapref"                     % "0.2.1",
       "io.chrisdavenport"           %%% "circuit"                    % "0.5.0",
       "io.chrisdavenport"           %%% "mules"                      % "0.5.0",
