@@ -65,10 +65,11 @@ object RedisCircuit {
   ): String => CircuitBreaker[F] = {
     val base = keyCircuitState[F](redisConnection, acquireTimeout, lockDuration, setOpts)
     val closed: CircuitBreaker.State = CircuitBreaker.Closed(0)
-    {(key: String) => 
+    val out: String => CircuitBreaker[F]  = {(key: String) => 
       val ref = RedisRef.liftedDefaultStorage(base.apply(key), closed)
       CircuitBreaker.unsafe(ref, maxFailures, resetTimeout, backoff, maxResetTimeout, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit)
     }
+    out
   }
 
   implicit private val eqState: Eq[State] = Eq.instance{
