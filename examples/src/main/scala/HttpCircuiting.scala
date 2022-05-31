@@ -1,13 +1,8 @@
 import io.chrisdavenport.rediculous.concurrent._
 import io.chrisdavenport.rediculous._
-import cats.implicits._
+import cats.syntax.all._
 import cats.effect._
-import fs2._
-import fs2.io.net._
-// import java.net.InetSocketAddress
-// import fs2._
 import scala.concurrent.duration._
-import cats.syntax.SetOps
 import com.comcast.ip4s._
 import _root_.io.chrisdavenport.mapref.MapRef
 import org.http4s.client.RequestKey
