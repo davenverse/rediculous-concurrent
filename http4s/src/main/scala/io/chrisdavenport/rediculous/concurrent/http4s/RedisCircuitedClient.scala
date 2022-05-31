@@ -33,9 +33,9 @@ object RedisCircuitedClient {
   )(client: Client[F]): Client[F] = {
     val iState = RedisCircuit.keyCircuitState(redisConnection, redisAcquireTimeout, redisLockDuration, redisSetOpts)
     val state = contramapKeys(iState)(requestKey(_, redisCircuitPrefix))
-    CircuitedClient.byMapRefAndKeyed(
+    CircuitedClient.byMapRefAndKeyed[F, RequestKey](
       state,
-      RequestKey.fromRequest,
+      RequestKey.fromRequest(_),
       circuitMaxFailures,
       circuitResetTimeout,
       circuitBackoff,
