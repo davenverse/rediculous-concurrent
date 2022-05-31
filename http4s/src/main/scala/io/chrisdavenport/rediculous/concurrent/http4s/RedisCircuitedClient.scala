@@ -51,7 +51,7 @@ object RedisCircuitedClient {
     prefix ++ requestKey.toString
   }
 
-  def contramapKeys[F[_], K1, K2, V](mapRef: MapRef[F, K1, V])(g: K2 => K1): MapRef[F, K2, V] = 
+  private def contramapKeys[F[_], K1, K2, V](mapRef: MapRef[F, K1, V])(g: K2 => K1): MapRef[F, K2, V] = 
     new MapRef[F, K2, V]{
       def apply(k: K2): Ref[F, V] = mapRef(g(k))
     }
