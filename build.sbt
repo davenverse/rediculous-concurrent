@@ -51,14 +51,27 @@ lazy val core = crossProject(JVMPlatform, JSPlatform)
     libraryDependencies += "com.github.jnr" % "jnr-unixsocket" % "0.38.15" % Test,
   )
 
+lazy val http4s = crossProject(JVMPlatform, JSPlatform)
+  .crossType(CrossType.Pure)
+  .in(file("http4s"))
+  .dependsOn(core)
+  .settings(yPartial)
+  .settings(yKindProjector)
+  .settings(
+    name := "rediculous-concurrent-http4s",
+    libraryDependencies ++= Seq(
+      "io.chrisdavenport" %% "circuit-http4s-client" % "0.4.0",
+    )
+  )
+
+
 lazy val examples = project.in(file("examples"))
   .disablePlugins(MimaPlugin)
-  .dependsOn(core.jvm)
+  .dependsOn(core.jvm, http4s.jvm)
   .settings(
     publish / skip := true,
     name := "rediculous-examples",
     libraryDependencies ++= Seq(
-      "io.chrisdavenport" %% "circuit-http4s-client" % "0.4.0",
       "org.http4s" %% "http4s-ember-client" % "0.23.12"
     )
   )
