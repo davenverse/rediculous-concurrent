@@ -17,6 +17,7 @@ import cats.effect._
 import io.chrisdavenport.rediculous.{RedisCommands,RedisConnection}
 import io.chrisdavenport.rediculous.RedisCtx.syntax.all._
 import scala.concurrent.duration.FiniteDuration
+import io.chrisdavenport.mapref.MapRef
 
 object RedisCircuit {
 
@@ -38,6 +39,20 @@ object RedisCircuit {
     CircuitBreaker.unsafe(ref, maxFailures, resetTimeout, backoff, maxResetTimeout, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit)
   }
 
+  def keyCircuitState[F[_]: Async](
+    redisConnection: RedisConnection[F],
+    acquireTimeout: FiniteDuration = 5.seconds,
+    lockDuration: FiniteDuration = 10.seconds,
+    setOpts: RedisCommands.SetOpts,
+  ): MapRef[F, String, Option[CircuitBreaker.State]] = {
+    val base: RedisMapRef[F] = RedisMapRef.impl[F](redisConnection, acquireTimeout, lockDuration, setOpts)
+    new MapRef[F, String, Option[CircuitBreaker.State]]{
+      def apply(s: String): Ref[F, Option[CircuitBreaker.State]] = {
+        RedisRef.optionJsonRef[F, CircuitBreaker.State](base(s))
+      }
+    }
+  }
+
   def keyCircuit[F[_]: Async](
     redisConnection: RedisConnection[F],
     acquireTimeout: FiniteDuration = 5.seconds,
@@ -48,15 +63,13 @@ object RedisCircuit {
     backoff: FiniteDuration => FiniteDuration,
     maxResetTimeout: Duration
   ): String => CircuitBreaker[F] = {
-    val base: RedisMapRef[F] = RedisMapRef.impl[F](redisConnection, acquireTimeout, lockDuration, setOpts)
-    val closed: String = (CircuitBreaker.Closed(0): State).asJson.noSpaces
-
-    {(key: String) => 
+    val base = keyCircuitState[F](redisConnection, acquireTimeout, lockDuration, setOpts)
+    val closed: CircuitBreaker.State = CircuitBreaker.Closed(0)
+    val out: String => CircuitBreaker[F]  = {(key: String) => 
       val ref = RedisRef.liftedDefaultStorage(base.apply(key), closed)
-      val stateRef = RedisRef.jsonRef[F, State](ref)
-
-      CircuitBreaker.unsafe(stateRef, maxFailures, resetTimeout, backoff, maxResetTimeout, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit)
+      CircuitBreaker.unsafe(ref, maxFailures, resetTimeout, backoff, maxResetTimeout, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit, Applicative[F].unit)
     }
+    out
   }
 
   implicit private val eqState: Eq[State] = Eq.instance{

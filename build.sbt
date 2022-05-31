@@ -52,10 +52,15 @@ lazy val core = crossProject(JVMPlatform, JSPlatform)
   )
 
 lazy val examples = project.in(file("examples"))
+  .disablePlugins(MimaPlugin)
   .dependsOn(core.jvm)
   .settings(
     publish / skip := true,
-    name := "rediculous-examples"
+    name := "rediculous-examples",
+    libraryDependencies ++= Seq(
+      "io.chrisdavenport" %% "circuit-http4s-client" % "0.4.0",
+      "org.http4s" %% "http4s-ember-client" % "0.23.12"
+    )
   )
 
 lazy val site = project.in(file("site"))
