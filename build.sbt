@@ -7,7 +7,6 @@ ThisBuild / developers := List(
   // your GitHub handle and name
   tlGitHubDev("christopherdavenport", "Christopher Davenport")
 )
-
 ThisBuild / tlCiReleaseBranches := Seq("main")
 
 // true by default, set to false to publish to s01.oss.sonatype.org
