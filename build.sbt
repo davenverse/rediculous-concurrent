@@ -1,6 +1,21 @@
-val catsV = "2.7.0"
-val catsEffectV = "3.3.11"
-val fs2V = "3.2.7"
+ThisBuild / tlBaseVersion := "0.3" // your current series x.y
+
+ThisBuild / organization := "io.chrisdavenport"
+ThisBuild / organizationName := "Christopher Davenport"
+ThisBuild / licenses := Seq(License.MIT)
+ThisBuild / developers := List(
+  // your GitHub handle and name
+  tlGitHubDev("christopherdavenport", "Christopher Davenport")
+)
+ThisBuild / tlCiReleaseBranches := Seq("main")
+
+// true by default, set to false to publish to s01.oss.sonatype.org
+ThisBuild / tlSonatypeUseLegacyHost := true
+
+
+val catsV = "2.8.0"
+val catsEffectV = "3.3.13"
+val fs2V = "3.2.9"
 val circeV = "0.14.1"
 
 ThisBuild / testFrameworks += new TestFramework("munit.Framework")
@@ -8,16 +23,12 @@ ThisBuild / testFrameworks += new TestFramework("munit.Framework")
 ThisBuild / crossScalaVersions := Seq("2.12.14", "2.13.8", "3.1.2")
 
 // Projects
-lazy val `rediculous-concurrent` = project.in(file("."))
-  .disablePlugins(MimaPlugin)
-  .enablePlugins(NoPublishPlugin)
-  .aggregate(core.jvm, core.js, examples)
+lazy val `rediculous-concurrent` = tlCrossRootProject
+  .aggregate(core, examples)
 
 lazy val core = crossProject(JVMPlatform, JSPlatform)
   .crossType(CrossType.Pure)
   .in(file("core"))
-  .settings(yPartial)
-  .settings(yKindProjector)
   .settings(
     name := "rediculous-concurrent",
     libraryDependencies ++= Seq(
@@ -30,10 +41,10 @@ lazy val core = crossProject(JVMPlatform, JSPlatform)
       "io.circe"                    %%% "circe-core"                 % circeV,
       "io.circe"                    %%% "circe-parser"               % circeV,
 
-      "io.chrisdavenport"           %%% "rediculous"                 % "0.3.0",
+      "io.chrisdavenport"           %%% "rediculous"                 % "0.4.0",
       "io.chrisdavenport"           %%% "mapref"                     % "0.2.1",
       "io.chrisdavenport"           %%% "circuit"                    % "0.5.0",
-      "io.chrisdavenport"           %%% "mules"                      % "0.5.0",
+      "io.chrisdavenport"           %%% "mules"                      % "0.6.0",
       "io.chrisdavenport"           %%% "single-fibered"             % "0.1.0",
 
       // Deps we may use in the future, but don't need presently.
@@ -55,8 +66,6 @@ lazy val http4s = crossProject(JVMPlatform, JSPlatform)
   .crossType(CrossType.Pure)
   .in(file("http4s"))
   .dependsOn(core)
-  .settings(yPartial)
-  .settings(yKindProjector)
   .settings(
     name := "rediculous-concurrent-http4s",
     libraryDependencies ++= Seq(
@@ -77,32 +86,7 @@ lazy val examples = project.in(file("examples"))
   )
 
 lazy val site = project.in(file("site"))
-  .disablePlugins(MimaPlugin)
-  .enablePlugins(NoPublishPlugin)
-  .enablePlugins(DavenverseMicrositePlugin)
+  .enablePlugins(TypelevelSitePlugin)
   .dependsOn(core.jvm)
-  .settings{
-    Seq(
-      micrositeDescription := "Redis Concurrency Structures",
-    )
-  }
 
-lazy val yPartial = 
-  Seq(
-    scalacOptions ++= {
-      if (scalaVersion.value.startsWith("2.12")) Seq("-Ypartial-unification")
-      else Seq()
-    }
-  )
 
-lazy val yKindProjector =
-  Seq(
-    scalacOptions ++= {
-      if(scalaVersion.value.startsWith("3")) Seq("-Ykind-projector")
-      else Seq()
-    },
-    libraryDependencies ++= {
-      if(scalaVersion.value.startsWith("3")) Seq()
-      else Seq(compilerPlugin("org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full))
-    }
-  )

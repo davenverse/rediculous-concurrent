@@ -84,11 +84,11 @@ object RedisCircuit {
   implicit private final val finiteDurationDecoder: Decoder[FiniteDuration] =
     new Decoder[FiniteDuration] {
       def apply(c: HCursor): Decoder.Result[FiniteDuration] = for {
-        length <- c.downField("length").as[Long].right
-        unitString <- c.downField("unit").as[String].right
+        length <- c.downField("length").as[Long]
+        unitString <- c.downField("unit").as[String]
         unit <- (try { Right(TimeUnit.valueOf(unitString)) } catch {
           case _: IllegalArgumentException => Left(DecodingFailure("FiniteDuration", c.history))
-        }).right
+        })
       } yield FiniteDuration(length, unit)
     }
 
