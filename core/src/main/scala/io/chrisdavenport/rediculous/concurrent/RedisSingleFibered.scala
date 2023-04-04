@@ -8,7 +8,6 @@ import cats.effect.std.UUIDGen
 import scala.concurrent.duration._
 import io.chrisdavenport.rediculous.RedisCommands
 import io.circe._
-import scala.collection.View.Single
 
 
 object RedisSingleFibered {
@@ -132,7 +131,7 @@ object RedisSingleFibered {
     encodeKey: K => String,
     action: K => F[V],
   ): K => F[V] = {(k: K) =>
-    val singleFibered = redisSingleFibered[F, V](
+    redisSingleFibered[F, V](
       connection,
       s"$baseRef:${encodeKey(k)}",
       acquireTimeoutRef,
@@ -141,8 +140,6 @@ object RedisSingleFibered {
       pollingIntervalDeferred,
       lifetimeDeferred,
       s"$deferredNameSpace:${encodeKey(k)}"
-    )
-
-    singleFibered(action(k))
+    )(action(k))
   }
 }
