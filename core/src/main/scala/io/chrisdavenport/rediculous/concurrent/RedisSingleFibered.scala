@@ -52,7 +52,6 @@ object RedisSingleFibered {
     maximumActionDuration: FiniteDuration, // This should be the maximum time that the action should take
 
     acquireTimeoutKeyLocationLock: FiniteDuration,
-    timeoutKeyLocationLock: FiniteDuration,
 
     pollingIntervalForCompletion: FiniteDuration,
     deferredNameSpace: String = "deferred",
@@ -60,10 +59,10 @@ object RedisSingleFibered {
     action: F[V],
   ): F[V] = {
     // val lifetimeDeferredSet = 2 * timeoutKeyLocationLock
-    def loop = redisSingleFibered(connection, keyLocation, maximumActionDuration, acquireTimeoutKeyLocationLock, timeoutKeyLocationLock, pollingIntervalForCompletion, deferredNameSpace)(action)
+    def loop = redisSingleFibered(connection, keyLocation, maximumActionDuration, acquireTimeoutKeyLocationLock, pollingIntervalForCompletion, deferredNameSpace)(action)
 
     def fromDeferredLocation(key: String) =
-      RedisDeferred.fromKey(connection, key, pollingIntervalForCompletion, timeoutKeyLocationLock)
+      RedisDeferred.fromKey(connection, key, pollingIntervalForCompletion, maximumActionDuration)
         .get
         .flatMap(s => io.circe.parser.parse(s).liftTo[F])
         .flatMap(json => json.as[SingleFiberedState[V]].liftTo[F])
@@ -72,7 +71,6 @@ object RedisSingleFibered {
           case SingleFiberedState.Errored(message) => new RuntimeException(s"RedisSingleFibered Remote Action Failed: $message").raiseError[F, V]
           case SingleFiberedState.Completed(None) => new RuntimeException(s"RedisSingleFibered Remote Action Did Not Return Value: Did you use a monad transformer that does not return a value as a part of a succes condition?").raiseError[F, V]
           case SingleFiberedState.Completed(Some(value)) =>
-            // println(s"Received Value: key: $key value:$value")
             value.pure[F]
         }.timeout(maximumActionDuration)
 
@@ -101,14 +99,13 @@ object RedisSingleFibered {
         connection,
         keyLocation,
         acquireTimeout = acquireTimeoutKeyLocationLock,
-        lockTimeout = timeoutKeyLocationLock,
+        lockTimeout = maximumActionDuration,
       )
 
     UUIDGen[F].randomUUID.flatMap{ case id =>
       val key = s"$deferredNameSpace:$id"
       RedisCommands.get(keyLocation).run(connection).flatMap{
         case Some(value) =>
-          // println(s"Waiting for deferred location $value")
           fromDeferredLocation(value)
         case None =>
           Clock[F].realTime.flatMap{ start =>
@@ -123,29 +120,36 @@ object RedisSingleFibered {
                       setCondition = Some(RedisCommands.Condition.Nx),
                       keepTTL = false
                     )
-                    RedisCommands.set(keyLocation, key, setOpts).run(connection).map{
-                      case Some(value) => true // We set the value so own the action
-                      case None => false // Something was set by an intermediate lock, loop
+                    RedisCommands.set(keyLocation, key, setOpts).run(connection).flatMap{
+                      case Some(value) => // We set the value so own the action
+                        val deferred = RedisDeferred.fromKey(connection, key, pollingIntervalForCompletion, maximumActionDuration)
+                        Clock[F].realTime.flatMap{ newTime =>
+                          val elapsed = newTime - start
+                          val rest = maximumActionDuration - elapsed
+                          poll(action.timeout(rest))
+                            .guaranteeCase{ outcome =>
+                              encodeOutcome(outcome).flatMap{ out =>
+                                Clock[F].realTime.flatMap{ endTime =>
+                                  val elapsed = endTime - start
+                                  val time = maximumActionDuration - elapsed
+                                  val isExpired = time < 0.millis
+
+                                  RedisCommands.del(keyLocation) // deletes your ownership run of the location in question
+                                    .run(connection)
+                                    .whenA(!isExpired) >> // this condition makes it so you don't delete someone elses ownership run that follows yours
+                                    deferred.complete(out).void
+                                }
+                              }
+                            }
+                        }
+                      case None =>
+                        // Maybe something more specific
+                        // Value should not exist when lock is acquired
+                        new RuntimeException("Rediculous-Concurrent Invariant Break: Lock ownership established but value present").raiseError[F, V]
                     }
                   }
-                case false => Concurrent[F].pure(false)
-              }.flatMap{
-                case true =>
-                  val deferred = RedisDeferred.fromKey(connection, key, pollingIntervalForCompletion, maximumActionDuration)
-                  Clock[F].realTime.flatMap{ newTime =>
-                    val elapsed = newTime - start
-                    val rest = maximumActionDuration - elapsed
-                    poll(action.timeout(rest))
-                      .guaranteeCase{ outcome =>
-                        encodeOutcome(outcome).flatMap{ out =>
-                          Clock[F].realTime.flatMap{ endTime =>
-                            val elapsed = endTime - start
-                            val isExpired = maximumActionDuration - elapsed < 0.millis
-                            RedisCommands.del(key).run(connection).whenA(!isExpired) >> deferred.complete(out).void //  <* Applicative[F].unit.map(_ => println(s"Set $key to $out"))
-                          }
-                        }
-                      }
-                  }
+                // Dod not acquire lock, means someone else must have and can go get their value
+                // resource has no finalizer since we did not acquire the lock
                 case false => poll(loop)
               }
             )
@@ -158,25 +162,23 @@ object RedisSingleFibered {
     connection: RedisConnection[F],
     baseKeyLocation: String,
 
-    keyLocationTimeout: FiniteDuration,
+    maximumActionDuration: FiniteDuration,
     acquireTimeoutKeyLocationLock: FiniteDuration,
-    timeoutKeyLocationLock: FiniteDuration,
 
-
-    pollingIntervalDeferred: FiniteDuration,
+    pollingIntervalForCompletion: FiniteDuration,
     deferredNameSpace: String = "deferred",
   )(
-    encodeKey: K => String,
+    encodeKey: K => String, // Must be unique for the key, if it is not unique then it will share outcomes with other keys that match that string equality
     action: K => F[V],
   ): K => F[V] = {(k: K) =>
     redisSingleFibered[F, V](
       connection,
       s"$baseKeyLocation:${encodeKey(k)}",
-      keyLocationTimeout,
+      maximumActionDuration,
       acquireTimeoutKeyLocationLock,
-      timeoutKeyLocationLock,
-      pollingIntervalDeferred,
-      s"$deferredNameSpace:${encodeKey(k)}"
+      pollingIntervalForCompletion,
+
+      s"$deferredNameSpace:${baseKeyLocation}:${encodeKey(k)}"
     )(action(k))
   }
 }

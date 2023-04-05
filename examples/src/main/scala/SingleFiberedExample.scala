@@ -38,8 +38,7 @@ object SingleFiberedExample extends IOApp {
         conn,
         "myKeyidentity",
         maximumActionDuration = 10.seconds,
-        acquireTimeoutKeyLocationLock = 1.seconds,
-        timeoutKeyLocationLock = 20.seconds,
+        acquireTimeoutKeyLocationLock = 0.2.seconds,
 
         pollingIntervalForCompletion = 10.millis,
       )(_)
@@ -49,7 +48,7 @@ object SingleFiberedExample extends IOApp {
 
       base.parSequence.flatMap{
         list => IO.println(s"$list")
-      }
+      }.replicateA_(3)
 
 
     }.as(ExitCode.Success)
