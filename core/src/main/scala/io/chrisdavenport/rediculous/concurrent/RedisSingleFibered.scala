@@ -72,7 +72,7 @@ object RedisSingleFibered {
     connection: RedisConnection[F],
     keyLocation: String,
 
-    maximumActionDuration: FiniteDuration, // This should be the maximum time that the action should take
+    maximumActionDuration: FiniteDuration,
 
     acquireTimeoutKeyLocationLock: FiniteDuration,
 
@@ -218,7 +218,7 @@ object RedisSingleFibered {
     pollingIntervalForCompletion: FiniteDuration,
     deferredNameSpace: String = "deferred",
   )(
-    encodeKey: K => String, // Must be unique for the key, if it is not unique then it will share outcomes with other keys that match that string equality
+    encodeKey: K => String,
     action: K => F[V],
   ): K => F[V] = {(k: K) =>
     redisSingleFibered[F, V](
