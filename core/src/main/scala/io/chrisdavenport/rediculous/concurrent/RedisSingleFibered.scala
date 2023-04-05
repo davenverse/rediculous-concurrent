@@ -1,5 +1,6 @@
 package io.chrisdavenport.rediculous.concurrent
 
+import cats._
 import io.chrisdavenport.rediculous.RedisConnection
 import cats.syntax.all._
 import cats.effect._
@@ -8,6 +9,7 @@ import cats.effect.std.UUIDGen
 import scala.concurrent.duration._
 import io.chrisdavenport.rediculous.RedisCommands
 import io.circe._
+import io.chrisdavenport.rediculous._
 
 
 object RedisSingleFibered {
@@ -40,12 +42,12 @@ object RedisSingleFibered {
     }
   }
 
-  def redisSingleFibered[F[_]: Async: UUIDGen, V: Codec](
+  def redisSingleFibered[F[_]: Async: UUIDGen, V: Decoder: Encoder](
     connection: RedisConnection[F],
-    keyRef: String,
-    acquireTimeoutRef: FiniteDuration,
-    lockTimeoutRef: FiniteDuration,
-    setOptsRef: RedisCommands.SetOpts,
+    keyLocation: String,
+    keyLocationTimeout: FiniteDuration,
+    acquireTimeoutKeyLocationLock: FiniteDuration,
+    timeoutKeyLocationLock: FiniteDuration,
 
     pollingIntervalDeferred: FiniteDuration,
     lifetimeDeferred: FiniteDuration,
@@ -53,16 +55,10 @@ object RedisSingleFibered {
   )(
     action: F[V],
   ): F[V] = {
-    val ref = RedisRef.lockedOptionRef[F](
-      connection,
-      keyRef,
-      acquireTimeoutRef,
-      lockTimeoutRef,
-      setOptsRef
-    )
+    def loop = redisSingleFibered(connection, keyLocation, keyLocationTimeout, acquireTimeoutKeyLocationLock, timeoutKeyLocationLock, pollingIntervalDeferred, lifetimeDeferred, deferredNameSpace)(action)
 
-    def fromDeferredLocation(value: String) =
-      RedisDeferred.fromKey(connection, value, pollingIntervalDeferred, lifetimeDeferred)
+    def fromDeferredLocation(key: String) =
+      RedisDeferred.fromKey(connection, key, pollingIntervalDeferred, lifetimeDeferred)
         .get
         .flatMap(s => io.circe.parser.parse(s).liftTo[F])
         .flatMap(json => json.as[SingleFiberedState[V]].liftTo[F])
@@ -70,7 +66,9 @@ object RedisSingleFibered {
           case SingleFiberedState.Canceled() => new RuntimeException("RedisSingleFibered Remote Action Cancelled").raiseError[F, V]
           case SingleFiberedState.Errored(message) => new RuntimeException(s"RedisSingleFibered Remote Action Failed: $message").raiseError[F, V]
           case SingleFiberedState.Completed(None) => new RuntimeException(s"RedisSingleFibered Remote Action Did Not Return Value: Did you use a monad transformer that does not return a value as a part of a succes condition?").raiseError[F, V]
-          case SingleFiberedState.Completed(Some(value)) => value.pure[F]
+          case SingleFiberedState.Completed(Some(value)) =>
+            // println(s"Received Value: key: $key value:$value")
+            value.pure[F]
         }
 
     def encodeOutcome(outcome: Outcome[F, Throwable, V]): F[String] = outcome match {
@@ -93,36 +91,50 @@ object RedisSingleFibered {
         }
     }
 
+    def writeMaybe: Resource[F, Boolean] =
+      RedisLock.tryAcquireLockWithTimeout(
+        connection,
+        keyLocation,
+        acquireTimeout = acquireTimeoutKeyLocationLock,
+        lockTimeout = timeoutKeyLocationLock,
+      )
+
     UUIDGen[F].randomUUID.flatMap{ id =>
       val key = s"$deferredNameSpace:$id"
-      ref.get.flatMap{
-        case Some(value) => fromDeferredLocation(value)
+      RedisCommands.get(keyLocation).run(connection).flatMap{
+        case Some(value) =>
+          // println(s"Waiting for deferred location $value")
+          fromDeferredLocation(value)
         case None => Concurrent[F].uncancelable(poll =>
-          ref.modify{
-            case None => (key.some, Option.empty[String])
-            case Some(value) => (value.some, value.some)
+          writeMaybe.use{
+            case true => RedisCommands.set(keyLocation, key, RedisCommands.SetOpts(None, setMilliseconds = Some(keyLocationTimeout.toMillis), setCondition = Some(RedisCommands.Condition.Nx), false)).run(connection).map{
+              case Some(value) => true
+              case None => false
+            }
+            case false => Concurrent[F].pure(false)
           }.flatMap{
-            case Some(value) => poll(fromDeferredLocation(value))
-            case None => // All Us and Only us
+            case true =>
               val deferred = RedisDeferred.fromKey(connection, key, pollingIntervalDeferred, lifetimeDeferred)
               poll(action)
                 .guaranteeCase{ outcome =>
                   encodeOutcome(outcome).flatMap{ out =>
-                    ref.set(None) >> deferred.complete(out).void
+                    RedisCommands.del(key).run(connection) >> deferred.complete(out).void //  <* Applicative[F].unit.map(_ => println(s"Set $key to $out"))
                   }
                 }
+            case false => poll(loop)
           }
         )
       }
     }
   }
 
-  def redisSingleFiberedFunction[F[_]: Async: UUIDGen, K, V: Codec](
+  def redisSingleFiberedFunction[F[_]: Async: UUIDGen, K, V: Decoder: Encoder](
     connection: RedisConnection[F],
-    baseRef: String,
-    acquireTimeoutRef: FiniteDuration,
-    lockTimeoutRef: FiniteDuration,
-    setOptsRef: RedisCommands.SetOpts,
+    baseKeyLocation: String,
+    keyLocationTimeout: FiniteDuration,
+    acquireTimeoutKeyLocationLock: FiniteDuration,
+    timeoutKeyLocationLock: FiniteDuration,
+
 
     pollingIntervalDeferred: FiniteDuration,
     lifetimeDeferred: FiniteDuration,
@@ -133,10 +145,10 @@ object RedisSingleFibered {
   ): K => F[V] = {(k: K) =>
     redisSingleFibered[F, V](
       connection,
-      s"$baseRef:${encodeKey(k)}",
-      acquireTimeoutRef,
-      lockTimeoutRef,
-      setOptsRef,
+      s"$baseKeyLocation:${encodeKey(k)}",
+      keyLocationTimeout,
+      acquireTimeoutKeyLocationLock,
+      timeoutKeyLocationLock,
       pollingIntervalDeferred,
       lifetimeDeferred,
       s"$deferredNameSpace:${encodeKey(k)}"
