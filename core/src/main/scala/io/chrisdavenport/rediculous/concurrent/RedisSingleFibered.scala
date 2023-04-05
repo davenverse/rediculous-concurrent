@@ -43,7 +43,30 @@ object RedisSingleFibered {
   }
 
   /**
+   * This leverages redis to do distributed action coordination.
    *
+   * It assumes all participants will follow basic rules.
+   * 1. The person holding the lock is the only person who gets to write to the keyLocation location
+   * 2. When a person is done with an action, they will delete the keyLocation and release the lock (this implies on acquisition of the lock)
+   *
+   * This means any point can wait an entire maximumActionDuration to get an error if a crash occurs directly after the lock has been
+   * acquired and the action proceeds.
+   *
+   * The data is stored leveraging json and the V should be able to traverse Encoding/Decoding with no loss
+   * of information.
+   *
+   * Errors that occur will be propagated, but without access to the original class information.
+   *
+   * @param connection The redis connection to communicate using
+   * @param keyLocation The location that the moving reference point uses
+   * @param maximumActionDuration The maximum amount of time the action F[V] is allowed to take.
+   *  This is something to put a lof of thought into as its also the maximum amount of time that any particular
+   *  unit can wait.
+   * @param acquireTimeoutKeyLocationLock This is the acquisition period that can occur when attempting to get the lock if redis is non-responsive.
+   * @param pollingIntervalForCompletion This is how frequently each enqueued fiber is checking for the completion state.
+   * @param deferredNamespace This is the namespace for temporary locations of information of completed actions. Since they need to outlive
+   * the locks of individual actions for those who are in poll loops or received the key near simultaneously with keyLocation clearing.
+   * @param action The action to perform if we become the owner of the shared action.
    **/
   def redisSingleFibered[F[_]: Async: UUIDGen, V: Decoder: Encoder](
     connection: RedisConnection[F],
@@ -58,7 +81,6 @@ object RedisSingleFibered {
   )(
     action: F[V],
   ): F[V] = {
-    // val lifetimeDeferredSet = 2 * timeoutKeyLocationLock
     def loop = redisSingleFibered(connection, keyLocation, maximumActionDuration, acquireTimeoutKeyLocationLock, pollingIntervalForCompletion, deferredNameSpace)(action)
 
     def fromDeferredLocation(key: String) =
@@ -158,6 +180,34 @@ object RedisSingleFibered {
     }
   }
 
+  /**
+   * This leverages redis to do distributed keyed action coordination.
+   *
+   * It assumes all participants will follow basic rules.
+   * 1. The person holding the lock is the only person who gets to write to the keyLocation location
+   * 2. When a person is done with an action, they will delete the keyLocation and release the lock (this implies on acquisition of the lock)
+   *
+   * This means any point can wait an entire maximumActionDuration to get an error if a crash occurs directly after the lock has been
+   * acquired and the action proceeds.
+   *
+   * The data is stored leveraging json and the V should be able to traverse Encoding/Decoding with no loss
+   * of information.
+   *
+   * Errors that occur will be propagated, but without access to the original class information.
+   *
+   * @param connection The redis connection to communicate using
+   * @param baseKeyLocation The base namespace that each keyed moving reference point uses.
+   * @param maximumActionDuration The maximum amount of time the action F[V] is allowed to take.
+   *  This is something to put a lof of thought into as its also the maximum amount of time that any particular
+   *  unit can wait.
+   * @param acquireTimeoutKeyLocationLock This is the acquisition period that can occur when attempting to get the lock if redis is non-responsive.
+   * @param pollingIntervalForCompletion This is how frequently each enqueued fiber is checking for the completion state.
+   * @param deferredNamespace This is the namespace for temporary locations of information of completed actions. Since they need to outlive
+   * the locks of individual actions for those who are in poll loops or received the key near simultaneously with keyLocation clearing.
+   * @param encodeKey The function to encode keys into the namespace. Must be unique as this key encoding will be the equality reference
+   * for what actions receive the same data.
+   * @param action The action to perform if we become the owner of the shared action.
+   **/
   def redisSingleFiberedFunction[F[_]: Async: UUIDGen, K, V: Decoder: Encoder](
     connection: RedisConnection[F],
     baseKeyLocation: String,
