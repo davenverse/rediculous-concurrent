@@ -5,16 +5,16 @@ import cats.effect._
 import io.chrisdavenport.rediculous._
 import io.chrisdavenport.rediculous.RedisCtx.syntax.all._
 import scala.concurrent.duration._
-import io.chrisdavenport.mapref.MapRef
+import cats.effect.std.MapRef
 
 class RedisMapRef[F[_]: Async] (
   redisConnection: RedisConnection[F], 
   acquireTimeout: FiniteDuration,
   lockTimeout: FiniteDuration,
   setOpts: RedisCommands.SetOpts
-) extends Function1[String, Ref[F, Option[String]]] {
+) extends MapRef[F, String, Option[String]] {
 
-  def apply(k: String): Ref[F,Option[String]] = 
+  def apply(k: String): Ref[F,Option[String]] =
     new RedisRef.LockedRedisRef[F](redisConnection, k, acquireTimeout, lockTimeout, setOpts)
 
   def unsetKey(k: String): F[Unit] =

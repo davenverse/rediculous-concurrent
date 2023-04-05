@@ -11,29 +11,7 @@ import io.chrisdavenport.rediculous.RedisCtx.syntax.all._
 import scala.concurrent.duration._
 import cats.effect.std.UUIDGen
 import java.util.UUID
-
-/**
- * A synchronization abstraction that allows a set of fibers
- * to wait until they all reach a certain point.
- *
- * A cyclic barrier is initialized with a positive integer capacity n and
- * a fiber waits by calling [[await]], at which point it is semantically
- * blocked until a total of n fibers are blocked on the same cyclic barrier.
- *
- * At this point all the fibers are unblocked and the cyclic barrier is reset,
- * allowing it to be used again.
- */
-trait CyclicBarrier[F[_]]{ self => 
-  /**
-   * Possibly semantically block until the cyclic barrier is full
-   */
-  def await: F[Unit]
-
-  def mapK[G[_]](f: F ~> G): CyclicBarrier[G] =
-    new CyclicBarrier[G] {
-      def await: G[Unit] = f(self.await)
-    }
-}
+import cats.effect.std.CyclicBarrier
 
 object RedisCyclicBarrier {
 

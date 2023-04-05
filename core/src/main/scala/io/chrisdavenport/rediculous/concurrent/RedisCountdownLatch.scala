@@ -6,34 +6,12 @@ import cats.effect._
 import io.chrisdavenport.rediculous._
 import io.circe._
 import io.circe.syntax._
-import io.chrisdavenport.rediculous.concurrent.RedisCountdownLatch.Awaiting
-import io.chrisdavenport.rediculous.concurrent.RedisCountdownLatch.Done
 import scala.concurrent.duration._
 import cats.syntax.TryOps
 import io.chrisdavenport.rediculous.RedisCtx.syntax.all._
 import cats.instances.finiteDuration
 
-abstract class CountDownLatch[F[_]] { self =>
-
-  /**
-   * Release a latch, decrementing the remaining count and
-   * releasing any fibers that are blocked if the count
-   * reaches 0
-   */
-  def release: F[Unit]
-
-  /**
-   * Semantically block until the count reaches 0
-   */
-  def await: F[Unit]
-
-  def mapK[G[_]](f: F ~> G): CountDownLatch[G] =
-    new CountDownLatch[G] {
-      def release: G[Unit] = f(self.release)
-      def await: G[Unit] = f(self.await)
-    }
-
-}
+import cats.effect.std.CountDownLatch
 
 object RedisCountdownLatch {
 

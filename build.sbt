@@ -13,14 +13,14 @@ ThisBuild / tlCiReleaseBranches := Seq("main")
 ThisBuild / tlSonatypeUseLegacyHost := true
 
 
-val catsV = "2.8.0"
-val catsEffectV = "3.3.13"
-val fs2V = "3.2.9"
-val circeV = "0.14.1"
+val catsV = "2.9.0"
+val catsEffectV = "3.4.8"
+val fs2V = "3.6.1"
+val circeV = "0.14.5"
 
 ThisBuild / testFrameworks += new TestFramework("munit.Framework")
 
-ThisBuild / crossScalaVersions := Seq("2.12.14", "2.13.8", "3.1.2")
+ThisBuild / crossScalaVersions := Seq("2.12.14", "2.13.8", "3.2.2")
 
 // Projects
 lazy val `rediculous-concurrent` = tlCrossRootProject
@@ -52,8 +52,8 @@ lazy val core = crossProject(JVMPlatform, JSPlatform)
       // "io.chrisdavenport"           %% "log4cats-core"              % log4catsV,
       // "io.chrisdavenport"           %% "log4cats-slf4j"             % log4catsV,
       // "io.chrisdavenport"           %% "log4cats-testing"           % log4catsV     % Test,
-      "org.typelevel"               %%% "munit-cats-effect-3"        % "1.0.5"      % Test,
-      "io.chrisdavenport"           %%% "whale-tail-manager"         % "0.0.8" % Test,
+      "org.typelevel"               %%% "munit-cats-effect-3"        % "1.0.7"      % Test,
+      "io.chrisdavenport"           %%% "whale-tail-manager"         % "0.0.9" % Test,
       // "com.dimafeng"                %% "testcontainers-scala"       % "0.38.8"      % Test
     )
   ).jsSettings(
