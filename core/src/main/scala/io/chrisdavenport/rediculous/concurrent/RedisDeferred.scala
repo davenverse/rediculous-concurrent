@@ -20,9 +20,9 @@ object RedisDeferred {
     */
   def create[F[_]: Async: UUIDGen](
     redisConnection: RedisConnection[F],
-    pollingInterval: FiniteDuration, 
+    pollingInterval: FiniteDuration,
     lifetime: FiniteDuration
-  ): F[(String, Deferred[F, String])] = UUIDGen[F].randomUUID.map{identifier => 
+  ): F[(String, Deferred[F, String])] = UUIDGen[F].randomUUID.map{identifier =>
     val key = s"deferred:${identifier}"
     (key, fromKey(redisConnection, key, pollingInterval, lifetime))
   }
