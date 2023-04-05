@@ -37,13 +37,13 @@ object SingleFiberedExample extends IOApp {
       val singleFibered = RedisSingleFibered.redisSingleFibered[IO, String](
         conn,
         "myKeyidentity",
-        10.seconds,
-        10.seconds,
-        20.seconds,
+        maximumActionDuration = 10.seconds,
+        acquireTimeoutKeyLocationLock = 1.seconds,
+        timeoutKeyLocationLock = 20.seconds,
 
-        10.millis,
-        15.seconds,
+        pollingIntervalForCompletion = 10.millis,
       )(_)
+
       val base = List.iterate(0, 50)(_ + 1)
         .map(i => singleFibered(action(i.toString)))
 
