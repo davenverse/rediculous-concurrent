@@ -134,7 +134,8 @@ object RedisSingleFibered {
                   val deferred = RedisDeferred.fromKey(connection, key, pollingIntervalForCompletion, maximumActionDuration)
                   Clock[F].realTime.flatMap{ newTime =>
                     val elapsed = newTime - start
-                    poll(action.timeout(maximumActionDuration))
+                    val rest = maximumActionDuration - elapsed
+                    poll(action.timeout(rest))
                       .guaranteeCase{ outcome =>
                         encodeOutcome(outcome).flatMap{ out =>
                           Clock[F].realTime.flatMap{ endTime =>
