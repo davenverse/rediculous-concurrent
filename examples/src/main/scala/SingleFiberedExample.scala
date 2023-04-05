@@ -43,8 +43,7 @@ object SingleFiberedExample extends IOApp {
 
         10.millis,
         15.seconds,
-      )
-
+      )(_)
       val base = List.iterate(0, 50)(_ + 1)
         .map(i => singleFibered(action(i.toString)))
 
