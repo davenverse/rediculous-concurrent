@@ -59,7 +59,7 @@ lazy val core = crossProject(JVMPlatform, JSPlatform)
   ).jsSettings(
     scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.CommonJSModule)}
   ).jvmSettings(
-    libraryDependencies += "com.github.jnr" % "jnr-unixsocket" % "0.38.15" % Test,
+    libraryDependencies += "com.github.jnr" % "jnr-unixsocket" % "0.38.19" % Test,
   )
 
 lazy val http4s = crossProject(JVMPlatform, JSPlatform)
