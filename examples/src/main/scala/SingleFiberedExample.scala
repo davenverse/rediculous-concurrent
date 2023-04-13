@@ -10,10 +10,10 @@ import com.comcast.ip4s._
 
 import io.chrisdavenport.rediculous.concurrent.RedisSingleFibered
 import io.chrisdavenport.rediculous.RedisCommands
+import io.chrisdavenport.crossplatformioapp.CrossPlatformIOApp
 
 
-
-object SingleFiberedExample extends IOApp {
+object SingleFiberedExample extends CrossPlatformIOApp {
 
   def action(name: String): IO[String] = {
     Ref[IO].of(0).flatMap{ ref =>

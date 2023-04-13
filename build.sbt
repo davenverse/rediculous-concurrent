@@ -20,7 +20,7 @@ val circeV = "0.14.5"
 
 ThisBuild / testFrameworks += new TestFramework("munit.Framework")
 
-ThisBuild / crossScalaVersions := Seq("2.12.14", "2.13.8", "3.2.2")
+ThisBuild / crossScalaVersions := Seq("2.12.17", "2.13.10", "3.2.2")
 
 // Projects
 lazy val `rediculous-concurrent` = tlCrossRootProject
@@ -56,14 +56,14 @@ lazy val core = crossProject(JVMPlatform, JSPlatform, NativePlatform)
   ).jsSettings(
     scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.CommonJSModule)}
   ).jvmSettings(
-    libraryDependencies += "com.github.jnr" % "jnr-unixsocket" % "0.38.15" % Test,
+    libraryDependencies += "com.github.jnr" % "jnr-unixsocket" % "0.38.19" % Test,
   ).platformsSettings(JVMPlatform, JSPlatform)(
     libraryDependencies ++= Seq(
       "io.chrisdavenport"           %%% "whale-tail-manager"         % "0.0.9" % Test,
     )
   )
 
-lazy val http4s = crossProject(JVMPlatform, JSPlatform)
+lazy val http4s = crossProject(JVMPlatform, JSPlatform, NativePlatform)
   .crossType(CrossType.Pure)
   .in(file("http4s"))
   .dependsOn(core)
@@ -75,14 +75,17 @@ lazy val http4s = crossProject(JVMPlatform, JSPlatform)
   )
 
 
-lazy val examples = project.in(file("examples"))
+lazy val examples = crossProject(JVMPlatform, NativePlatform)
+  .crossType(CrossType.Pure)
+  .in(file("examples"))
   .disablePlugins(MimaPlugin)
-  .dependsOn(core.jvm, http4s.jvm)
+  .enablePlugins(NoPublishPlugin)
+  .dependsOn(core, http4s)
   .settings(
-    publish / skip := true,
     name := "rediculous-examples",
     libraryDependencies ++= Seq(
-      "org.http4s" %% "http4s-ember-client" % "0.23.12"
+      "org.http4s" %%% "http4s-ember-client" % "0.23.18",
+      "io.chrisdavenport" %%% "crossplatformioapp" % "0.1.0"
     )
   )
 
