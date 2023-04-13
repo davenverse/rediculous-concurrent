@@ -17,7 +17,7 @@ import cats.effect._
 import io.chrisdavenport.rediculous.{RedisCommands,RedisConnection}
 import io.chrisdavenport.rediculous.RedisCtx.syntax.all._
 import scala.concurrent.duration.FiniteDuration
-import io.chrisdavenport.mapref.MapRef
+import cats.effect.std.MapRef
 
 object RedisCircuit {
 
