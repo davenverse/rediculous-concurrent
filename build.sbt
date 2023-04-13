@@ -41,7 +41,7 @@ lazy val core = crossProject(JVMPlatform, JSPlatform)
       "io.circe"                    %%% "circe-core"                 % circeV,
       "io.circe"                    %%% "circe-parser"               % circeV,
 
-      "io.chrisdavenport"           %%% "rediculous"                 % "0.4.0",
+      "io.chrisdavenport"           %%% "rediculous"                 % "0.5.0",
       "io.chrisdavenport"           %%% "mapref"                     % "0.2.1",
       "io.chrisdavenport"           %%% "circuit"                    % "0.5.0",
       "io.chrisdavenport"           %%% "mules"                      % "0.6.0",
