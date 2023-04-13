@@ -70,12 +70,12 @@ lazy val http4s = crossProject(JVMPlatform, JSPlatform, NativePlatform)
   .settings(
     name := "rediculous-concurrent-http4s",
     libraryDependencies ++= Seq(
-      "io.chrisdavenport" %%% "circuit-http4s-client" % "0.5.0",
+      "io.chrisdavenport" %%% "circuit-http4s-client" % "0.5.1",
     )
   )
 
 
-lazy val examples = crossProject(JVMPlatform, NativePlatform)
+lazy val examples = crossProject(JVMPlatform, JSPlatform, NativePlatform)
   .crossType(CrossType.Pure)
   .in(file("examples"))
   .disablePlugins(MimaPlugin)
@@ -87,6 +87,10 @@ lazy val examples = crossProject(JVMPlatform, NativePlatform)
       "org.http4s" %%% "http4s-ember-client" % "0.23.18",
       "io.chrisdavenport" %%% "crossplatformioapp" % "0.1.0"
     )
+  ).jsSettings(
+    scalaJSUseMainModuleInitializer := true,
+    Compile / mainClass := Some("SingleFiberedExample"),
+    scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.CommonJSModule)},
   )
 
 lazy val site = project.in(file("site"))
