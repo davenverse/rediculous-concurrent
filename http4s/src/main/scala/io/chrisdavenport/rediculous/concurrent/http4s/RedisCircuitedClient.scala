@@ -3,7 +3,7 @@ package io.chrisdavenport.rediculous.concurrent.http4s
 
 import cats.syntax.all._
 import cats.effect.kernel._
-import io.chrisdavenport.mapref.MapRef
+import cats.effect.std.MapRef
 import org.http4s.client._
 import scala.concurrent.duration._
 import io.chrisdavenport.rediculous._
@@ -31,7 +31,7 @@ object RedisCircuitedClient {
     circuitTranslatedError: (Request[F], RejectedExecution, RequestKey) => Option[Throwable] = defaultTranslatedError[F, RequestKey](_, _, _),
     circuitShouldFail: (Request[F], Response[F]) => ShouldCircuitBreakerSeeAsFailure = defaultShouldFail[F](_, _)
   )(client: Client[F]): Client[F] = {
-    val iState = RedisCircuit.keyCircuitState(redisConnection, redisAcquireTimeout, redisLockDuration, redisSetOpts)
+    val iState = RedisCircuit.keyCircuitState[F](redisConnection, redisAcquireTimeout, redisLockDuration, redisSetOpts)
     val state = contramapKeys(iState)(requestKey(_, redisCircuitPrefix))
     CircuitedClient.byMapRefAndKeyed[F, RequestKey](
       state,

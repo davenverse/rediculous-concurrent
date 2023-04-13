@@ -9,7 +9,7 @@ import fs2.io.net._
 import scala.concurrent.duration._
 import cats.syntax.SetOps
 import com.comcast.ip4s._
-import _root_.io.chrisdavenport.mapref.MapRef
+import cats.effect.std.MapRef
 
 object Main extends IOApp {
 

@@ -4,7 +4,7 @@ import cats.syntax.all._
 import cats.effect._
 import scala.concurrent.duration._
 import com.comcast.ip4s._
-import _root_.io.chrisdavenport.mapref.MapRef
+import _root_.cats.effect.std.MapRef
 import org.http4s.client.RequestKey
 import org.http4s.ember.client.EmberClientBuilder
 import io.chrisdavenport.rediculous.concurrent.http4s.RedisCircuitedClient
