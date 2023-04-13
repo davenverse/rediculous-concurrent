@@ -81,7 +81,7 @@ lazy val examples = project.in(file("examples"))
     publish / skip := true,
     name := "rediculous-examples",
     libraryDependencies ++= Seq(
-      "org.http4s" %% "http4s-ember-client" % "0.23.12"
+      "org.http4s" %% "http4s-ember-client" % "0.23.18"
     )
   )
 
