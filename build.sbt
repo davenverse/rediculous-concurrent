@@ -20,7 +20,7 @@ val circeV = "0.14.5"
 
 ThisBuild / testFrameworks += new TestFramework("munit.Framework")
 
-ThisBuild / crossScalaVersions := Seq("2.12.17", "2.13.10", "3.2.2")
+ThisBuild / crossScalaVersions := Seq("2.12.17", "2.13.10", "3.3.0")
 
 // Projects
 lazy val `rediculous-concurrent` = tlCrossRootProject
