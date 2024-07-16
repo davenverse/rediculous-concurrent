@@ -20,7 +20,7 @@ val circeV = "0.14.5"
 
 ThisBuild / testFrameworks += new TestFramework("munit.Framework")
 
-ThisBuild / crossScalaVersions := Seq("2.12.17", "2.13.10", "3.2.2")
+ThisBuild / crossScalaVersions := Seq("2.12.17", "2.13.10", "3.4.2")
 
 // Projects
 lazy val `rediculous-concurrent` = tlCrossRootProject
@@ -40,7 +40,7 @@ lazy val core = crossProject(JVMPlatform, JSPlatform, NativePlatform)
       "io.circe"                    %%% "circe-core"                 % circeV,
       "io.circe"                    %%% "circe-parser"               % circeV,
 
-      "io.chrisdavenport"           %%% "rediculous"                 % "0.5.0",
+      "io.chrisdavenport"           %%% "rediculous"                 % "0.6.0-M1",
       "io.chrisdavenport"           %%% "circuit"                    % "0.5.1",
       "io.chrisdavenport"           %%% "mules"                      % "0.7.0",
       "io.chrisdavenport"           %%% "single-fibered"             % "0.1.1",
