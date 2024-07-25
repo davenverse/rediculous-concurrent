@@ -13,14 +13,14 @@ ThisBuild / tlCiReleaseBranches := Seq("main")
 ThisBuild / tlSonatypeUseLegacyHost := true
 
 
-val catsV = "2.9.0"
-val catsEffectV = "3.4.8"
-val fs2V = "3.6.1"
-val circeV = "0.14.5"
+val catsV = "2.11.0"
+val catsEffectV = "3.4.11"
+val fs2V = "3.10.2"
+val circeV = "0.14.8"
 
 ThisBuild / testFrameworks += new TestFramework("munit.Framework")
 
-ThisBuild / crossScalaVersions := Seq("2.12.17", "2.13.10", "3.2.2")
+ThisBuild / crossScalaVersions := Seq("2.12.19", "2.13.14", "3.3.3")
 
 // Projects
 lazy val `rediculous-concurrent` = tlCrossRootProject
