@@ -14,7 +14,7 @@ object HttpCircuiting extends ResourceApp.Simple {
   def run: Resource[IO, Unit] = for {
     connection <- RedisConnection.queued[IO].withHost(host"localhost").withPort(port"6379").build
     automaticallyCircuitedClient <- EmberClientBuilder.default[IO].build
-      .map(RedisCircuitedClient(connection)(_))
+      .map(RedisCircuitedClient[IO](connection)(_))
   } yield ()
 
 
