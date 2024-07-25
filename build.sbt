@@ -50,7 +50,7 @@ lazy val core = crossProject(JVMPlatform, JSPlatform, NativePlatform)
       // "io.chrisdavenport"           %% "log4cats-core"              % log4catsV,
       // "io.chrisdavenport"           %% "log4cats-slf4j"             % log4catsV,
       // "io.chrisdavenport"           %% "log4cats-testing"           % log4catsV     % Test,
-      "org.typelevel"               %%% "munit-cats-effect"        % "2.0.0-M3"      % Test,
+      "org.typelevel"               %%% "munit-cats-effect"        % "2.0.0"      % Test,
       // "com.dimafeng"                %% "testcontainers-scala"       % "0.38.8"      % Test
     )
   ).jsSettings(
