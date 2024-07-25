@@ -95,4 +95,5 @@ lazy val examples = crossProject(JVMPlatform, JSPlatform, NativePlatform)
 
 lazy val site = project.in(file("site"))
   .enablePlugins(TypelevelSitePlugin)
+  .settings(tlSiteIsTypelevelProject := Some(TypelevelProject.Affiliate))
   .dependsOn(core.jvm)
