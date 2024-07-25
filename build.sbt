@@ -59,7 +59,7 @@ lazy val core = crossProject(JVMPlatform, JSPlatform, NativePlatform)
     libraryDependencies += "com.github.jnr" % "jnr-unixsocket" % "0.38.19" % Test,
   ).platformsSettings(JVMPlatform, JSPlatform)(
     libraryDependencies ++= Seq(
-      "io.chrisdavenport"           %%% "whale-tail-manager"         % "0.0.9" % Test,
+      "io.chrisdavenport"           %%% "whale-tail-manager"         % "0.0.10" % Test,
     )
   )
 
