@@ -9,10 +9,6 @@ ThisBuild / developers := List(
 )
 ThisBuild / tlCiReleaseBranches := Seq("main")
 
-// true by default, set to false to publish to s01.oss.sonatype.org
-ThisBuild / tlSonatypeUseLegacyHost := true
-
-
 val catsV = "2.11.0"
 val catsEffectV = "3.4.11"
 val fs2V = "3.10.2"
