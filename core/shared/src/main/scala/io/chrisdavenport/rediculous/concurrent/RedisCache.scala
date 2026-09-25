@@ -102,11 +102,15 @@ object RedisCache {
         val channel = message.channel
         val msg = message.message
         val keyR = ("__keyspace.*__:" + nameSpaceStarter + "(.*)").r
-        val parsed: String = channel match {
-          case keyR(key) => key
-        }
-        msg match {
-          case "set" | "expired" | "del" => topCache.delete(parsed)  >> additionalActionOnDelete.traverse_(_.apply(message.message))
+        // A channel that does not match is ignored rather than thrown on. This
+        // runs in the background pub/sub fiber, so a MatchError here would kill
+        // it and silently stop all further cache invalidation.
+        channel match {
+          case keyR(parsed) =>
+            msg match {
+              case "set" | "expired" | "del" => topCache.delete(parsed)  >> additionalActionOnDelete.traverse_(_.apply(message.message))
+              case _ => Concurrent[F].unit
+            }
           case _ => Concurrent[F].unit
         }
       }
