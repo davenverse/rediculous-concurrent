@@ -55,7 +55,10 @@ object RedisLock {
               .run(connection)
               .flatMap{
                 case Success(_) => Applicative[F].unit
-                case Aborted => shutdownLock(connection, lockName, identifier)
+                // Retry with the caller's unprefixed name: shutdownLock
+                // prefixes it again, so passing lockName here would operate on
+                // "lock:lock:..." and orphan the real key.
+                case Aborted => shutdownLock(connection, lockname, identifier)
                 case Error(value) => new Throwable(s"lock shutdown for $lockName encountered error $value").raiseError[F, Unit]
               }
           case _ => Applicative[F].unit
