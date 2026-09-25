@@ -7,7 +7,7 @@ ThisBuild / developers := List(
   // your GitHub handle and name
   tlGitHubDev("christopherdavenport", "Christopher Davenport")
 )
-ThisBuild / tlCiReleaseBranches := Seq("main")
+ThisBuild / tlCiReleaseBranches := Seq()
 
 val catsV = "2.11.0"
 val catsEffectV = "3.4.11"
