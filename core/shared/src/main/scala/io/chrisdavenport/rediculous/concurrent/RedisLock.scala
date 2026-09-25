@@ -62,6 +62,34 @@ object RedisLock {
         }
   }
 
+  /**
+   * Extends the lock expiration
+   * @return Returns true if identifier owns the lock and extends it; false if not the owner
+   */
+  def extendLockExpiration[F[_]: Async](
+     connection: RedisConnection[F],
+     lockname: String,
+     identifier: UUID,
+     lockTimeout: FiniteDuration
+   ): F[Boolean] = {
+    val lockName = "lock:" ++ lockname
+    (RedisCtx[RedisPipeline].keyed[Status](lockName, NonEmptyList.of("WATCH", lockName)) *>
+      RedisCommands.get[RedisPipeline](lockName)).pipeline.run(connection).flatMap {
+      case Some(value) if value === identifier.toString =>
+        RedisCommands
+          .expire[RedisTransaction](lockName, lockTimeout.toSeconds)
+          .transact
+          .run(connection)
+          .flatMap {
+            case Success(_) => Applicative[F].pure(true)
+            case Aborted    => extendLockExpiration(connection, lockName, identifier, lockTimeout)
+            case Error(value) =>
+              new Throwable(s"lock expiration extension for $lockName encountered error $value").raiseError[F, Boolean]
+          }
+      case _ => Applicative[F].pure(false)
+    }
+  }
+
   def tryAcquireLockWithTimeout[F[_]: Async: UUIDGen](
     connection: RedisConnection[F],
     lockname: String,
