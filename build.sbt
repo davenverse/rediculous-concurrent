@@ -9,14 +9,14 @@ ThisBuild / developers := List(
 )
 ThisBuild / tlCiReleaseBranches := Seq()
 
-val catsV = "2.11.0"
-val catsEffectV = "3.4.11"
-val fs2V = "3.10.2"
-val circeV = "0.14.8"
+val catsV = "2.13.0"
+val catsEffectV = "3.7.1"
+val fs2V = "3.14.0"
+val circeV = "0.14.16"
 
 ThisBuild / testFrameworks += new TestFramework("munit.Framework")
 
-ThisBuild / crossScalaVersions := Seq("2.12.19", "2.13.18", "3.4.2")
+ThisBuild / crossScalaVersions := Seq("2.13.18", "3.3.8")
 
 // Projects
 lazy val `rediculous-concurrent` = tlCrossRootProject
@@ -36,17 +36,17 @@ lazy val core = crossProject(JVMPlatform, JSPlatform, NativePlatform)
       "io.circe"                    %%% "circe-core"                 % circeV,
       "io.circe"                    %%% "circe-parser"               % circeV,
 
-      "io.chrisdavenport"           %%% "rediculous"                 % "0.6.0-M4",
-      "io.chrisdavenport"           %%% "circuit"                    % "0.5.1",
-      "io.chrisdavenport"           %%% "mules"                      % "0.7.2",
-      "io.chrisdavenport"           %%% "single-fibered"             % "0.1.1",
+      "io.chrisdavenport"           %%% "rediculous"                 % "0.6.0",
+      "io.chrisdavenport"           %%% "circuit"                    % "0.7.0",
+      "io.chrisdavenport"           %%% "mules"                      % "0.8.0",
+      "io.chrisdavenport"           %%% "single-fibered"             % "0.3.0",
 
       // Deps we may use in the future, but don't need presently.
       // "io.circe"                    %% "circe-generic"              % circeV,
       // "io.chrisdavenport"           %% "log4cats-core"              % log4catsV,
       // "io.chrisdavenport"           %% "log4cats-slf4j"             % log4catsV,
       // "io.chrisdavenport"           %% "log4cats-testing"           % log4catsV     % Test,
-      "org.typelevel"               %%% "munit-cats-effect"        % "2.0.0-M3"      % Test,
+      "org.typelevel"               %%% "munit-cats-effect"        % "2.2.1"      % Test,
       // "com.dimafeng"                %% "testcontainers-scala"       % "0.38.8"      % Test
     )
   ).jsSettings(
@@ -55,7 +55,7 @@ lazy val core = crossProject(JVMPlatform, JSPlatform, NativePlatform)
     libraryDependencies += "com.github.jnr" % "jnr-unixsocket" % "0.38.19" % Test,
   ).platformsSettings(JVMPlatform, JSPlatform)(
     libraryDependencies ++= Seq(
-      "io.chrisdavenport"           %%% "whale-tail-manager"         % "0.0.9" % Test,
+      "io.chrisdavenport"           %%% "whale-tail-manager"         % "0.0.14" % Test,
     )
   )
 
@@ -66,7 +66,7 @@ lazy val http4s = crossProject(JVMPlatform, JSPlatform, NativePlatform)
   .settings(
     name := "rediculous-concurrent-http4s",
     libraryDependencies ++= Seq(
-      "io.chrisdavenport" %%% "circuit-http4s-client" % "0.5.1",
+      "io.chrisdavenport" %%% "circuit-http4s-client" % "0.7.0",
     )
   )
 
@@ -81,7 +81,7 @@ lazy val examples = crossProject(JVMPlatform, JSPlatform, NativePlatform)
     name := "rediculous-examples",
     libraryDependencies ++= Seq(
       "org.http4s" %%% "http4s-ember-client" % "0.23.18",
-      "io.chrisdavenport" %%% "crossplatformioapp" % "0.1.0"
+      "io.chrisdavenport" %%% "crossplatformioapp" % "0.2.0"
     )
   ).jsSettings(
     scalaJSUseMainModuleInitializer := true,
