@@ -80,7 +80,7 @@ lazy val examples = crossProject(JVMPlatform, JSPlatform, NativePlatform)
   .settings(
     name := "rediculous-examples",
     libraryDependencies ++= Seq(
-      "org.http4s" %%% "http4s-ember-client" % "0.23.18",
+      "org.http4s" %%% "http4s-ember-client" % "0.23.37",
       "io.chrisdavenport" %%% "crossplatformioapp" % "0.2.0"
     )
   ).jsSettings(
